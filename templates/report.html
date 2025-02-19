@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scan Report</title>
+</head>
+<body>
+  <h1>Vulnerability Scan Report</h1>
+  <p>{{ report.summary }}</p>
+  <ul>
+    {% for vuln in report.details %}
+      <li>
+        <strong>{{ vuln.type }}</strong> - Severity: {{ vuln.severity }}<br>
+        {{ vuln.message }}
+      </li>
+    {% endfor %}
+  </ul>
+  <a href="{{ url_for('index') }}">Upload Another File</a>
+</body>
+</html>
