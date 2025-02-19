@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, flash
+import os
 import json
-import os 
+from flask import Flask, render_template, request, redirect, flash
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates')
 app = Flask(__name__, template_folder=template_dir)
+
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
 @app.route('/')
@@ -28,8 +29,8 @@ def upload():
         flash(f'Error processing file: {e}')
         return redirect(request.url)
 
+
 def scan_for_vulnerabilities(config):
-    """Example vulnerability check."""
     vulns = []
     if isinstance(config, dict) and config.get("debug") is True:
         vulns.append({
@@ -46,4 +47,5 @@ def generate_report(vulns):
         return {"summary": f"Found {len(vulns)} vulnerability(ies).", "details": vulns}
 
 if __name__ == '__main__':
+    print(app.url_map)
     app.run(host='0.0.0.0', port=8080, debug=True)
