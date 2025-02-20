@@ -113,7 +113,7 @@ class VulnerabilityScanner:
                 res_key = f"resources[{idx}]"
                 rtype = res.get("type", "").lower()
                 match rtype:
-                    # AWS Resources
+                    #aws
                     case "s3_bucket":
                         if res.get("public_read_access") is True or res.get("public_write_access") is True:
                             vuln = {
@@ -284,7 +284,7 @@ class VulnerabilityScanner:
                             }
                             vulnerabilities.append(self.add_remediation(vuln))
 
-                    # Azure Resources
+                    #azure
                     case "storage_account":
                         if res.get("public_access") not in [None, "None"]:
                             vuln = {
@@ -312,7 +312,7 @@ class VulnerabilityScanner:
                             vulnerabilities.append(self.add_remediation(vuln))
 
                     case "virtual_machine":
-                        # Azure VM
+                        
                         if res.get("password") and (len(res.get("password")) < 8 or "weak" in res.get("password").lower()):
                             vuln = {
                                 "type": "WeakPassword",
@@ -536,7 +536,7 @@ class VulnerabilityScanner:
                             }
                             vulnerabilities.append(self.add_remediation(vuln))
 
-                    # GCP Resources
+                    #gcp
                     case "compute_instance":
                         password = res.get("password", "")
                         if password and (len(password) < 8 or "weak" in password.lower()):
