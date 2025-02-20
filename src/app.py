@@ -3,7 +3,7 @@ import json
 import csv
 from io import StringIO
 from flask import Flask, render_template, request, redirect, flash, Response, session
-from .scanner import VulnerabilityScanner  # using relative import
+from .scanner import VulnerabilityScanner  # Relative import
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates')
 app = Flask(__name__, template_folder=template_dir)
@@ -31,7 +31,6 @@ def upload():
         try:
             config_data = json.load(file)
             vulnerabilities = scanner.scan(config_data, report_format="dict")
-            # Store vulnerabilities in session for CSV download.
             session['vulnerabilities'] = vulnerabilities
             if len(vulnerabilities) == 0:
                 summary = "No vulnerabilities found."
@@ -67,10 +66,11 @@ def download_csv():
         ])
     output = si.getvalue()
     si.close()
+    # Return as text/csv
     return Response(
         output,
         mimetype="text/csv",
-        headers={"Content-Disposition": "attachment;filename=vulnerabilities_report.csv"}
+        headers={"Content-Disposition": "attachment; filename=vulnerabilities_report.csv"}
     )
 
 if __name__ == '__main__':

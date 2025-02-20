@@ -21,6 +21,8 @@ class TestVulnerabilityScanner(unittest.TestCase):
         vulns = self.scanner.check_insecure_configurations(config)
         self.assertTrue(any(v["type"] == "InsecureConfiguration" for v in vulns))
 
+    # ================== AWS TESTS ==================
+
     def test_aws_ec2_vulnerabilities(self):
         config = {
             "resources": [
@@ -40,7 +42,7 @@ class TestVulnerabilityScanner(unittest.TestCase):
         self.assertIn("WeakPassword", types)
         self.assertIn("EncryptionDisabled", types)
         self.assertIn("MFADisabled", types)
-        self.assertIn("InsecureConfiguration", types)  # for allow_root_login
+        self.assertIn("InsecureConfiguration", types)
         self.assertIn("OpenPortExposure", types)
 
     def test_aws_s3_bucket_vulnerabilities(self):
@@ -59,6 +61,78 @@ class TestVulnerabilityScanner(unittest.TestCase):
         types = [v["type"] for v in vulns]
         self.assertIn("PublicAccessEnabled", types)
         self.assertIn("EncryptionDisabled", types)
+
+    def test_aws_cloudtrail_misconfigured(self):
+        config = {
+            "resources": [
+                {
+                    "type": "cloudtrail",
+                    "name": "trail1",
+                    "multi_region_trail": False,
+                    "log_file_validation_enabled": False,
+                    "encrypted": False
+                }
+            ]
+        }
+        vulns = self.scanner.scan_resources(config)
+        types = [v["type"] for v in vulns]
+        self.assertIn("CloudTrailMisconfigured", types)
+        self.assertIn("EncryptionDisabled", types)
+
+    def test_aws_cloudfront_insecure(self):
+        config = {
+            "resources": [
+                {
+                    "type": "cloudfront_distribution",
+                    "name": "my-dist",
+                    "viewer_protocol_policy": "allow-all"
+                }
+            ]
+        }
+        vulns = self.scanner.scan_resources(config)
+        types = [v["type"] for v in vulns]
+        self.assertIn("CloudFrontInsecure", types)
+
+    def test_aws_cloud_config_insecure(self):
+        config = {
+            "resources": [
+                {
+                    "type": "cloud_config",
+                    "name": "my-cloud-config",
+                    "recording_all_resources": False
+                }
+            ]
+        }
+        vulns = self.scanner.scan_resources(config)
+        types = [v["type"] for v in vulns]
+        self.assertIn("InsecureConfiguration", types)
+
+    def test_aws_iam_user_inline_policies(self):
+        config = {
+            "resources": [
+                {
+                    "type": "iam_user",
+                    "name": "someuser",
+                    "mfa_enabled": False,
+                    "inline_policies": [
+                        {
+                            "PolicyName": "admin-all",
+                            "PolicyDocument": {
+                                "Statement": [
+                                    {"Effect": "Allow", "Action": "*", "Resource": "*"}
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        vulns = self.scanner.scan_resources(config)
+        types = [v["type"] for v in vulns]
+        self.assertIn("MFADisabled", types)
+        self.assertIn("OverlyPermissiveIAMRole", types)
+
+    # ================== Azure TESTS ==================
 
     def test_azure_storage_account_vulnerabilities(self):
         config = {
@@ -113,6 +187,8 @@ class TestVulnerabilityScanner(unittest.TestCase):
         types = [v["type"] for v in vulns]
         self.assertIn("PublicAccessEnabled", types)
         self.assertIn("InsecureConfiguration", types)
+
+    # ================== GCP TESTS ==================
 
     def test_gcp_compute_instance_vulnerabilities(self):
         config = {
@@ -185,6 +261,8 @@ class TestVulnerabilityScanner(unittest.TestCase):
         types = [v["type"] for v in vulns]
         self.assertIn("LegacyABACEnabled", types)
 
+    # ================== Additional / Edge Cases ==================
+
     def test_full_scan_with_no_vulns(self):
         config = {
             "resources": [
@@ -201,6 +279,62 @@ class TestVulnerabilityScanner(unittest.TestCase):
         }
         vulns = self.scanner.scan(config)
         self.assertEqual(len(vulns), 0)
+
+    def test_unknown_resource_type(self):
+        config = {
+            "resources": [
+                {
+                    "type": "unknown_resource",
+                    "name": "mysterious"
+                }
+            ]
+        }
+        vulns = self.scanner.scan_resources(config)
+        self.assertEqual(len(vulns), 0)
+
+    def test_scan_txt_format(self):
+        """Test generating a text report from scan."""
+        config = {
+            "resources": [
+                {
+                    "type": "virtual_machine",
+                    "name": "vm1",
+                    "password": "weakpwd",
+                    "open_ports": [22],
+                    "encryption": False,
+                    "mfa_enabled": False
+                }
+            ]
+        }
+        txt_report = self.scanner.scan(config, report_format="txt")
+        self.assertIn("Vulnerability 1:", txt_report)
+        self.assertIn("WeakPassword", txt_report)
+        self.assertIn("EncryptionDisabled", txt_report)
+
+    def test_scan_json_format(self):
+        """Test generating a JSON report from scan."""
+        config = {
+            "resources": [
+                {
+                    "type": "storage_account",
+                    "name": "insecurestorage",
+                    "public_access": "Blob",
+                    "encryption_enabled": False
+                }
+            ]
+        }
+        json_report = self.scanner.scan(config, report_format="json")
+        self.assertIn('"type": "PublicAccessEnabled"', json_report)
+        self.assertIn('"type": "EncryptionDisabled"', json_report)
+
+    def test_no_resources_key(self):
+        config = {}
+        vulns = self.scanner.scan_resources(config)
+        self.assertEqual(vulns, [])
+
+        config2 = {"resources": "not_a_list"}
+        vulns2 = self.scanner.scan_resources(config2)
+        self.assertEqual(vulns2, [])
 
 if __name__ == '__main__':
     unittest.main()

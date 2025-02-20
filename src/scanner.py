@@ -8,32 +8,44 @@ class VulnerabilityScanner:
         remediation_dict = {
             "SensitiveInformationExposure": "Use encryption or a secret manager to store sensitive data; do not use plain text values.",
             "DebugModeEnabled": "Disable debug mode in production to prevent exposure of internal details.",
-            "InsecureConfiguration": "Review your configuration and disable insecure options such as eval, dynamic loading, or root login.",
+            "InsecureConfiguration": "Review and disable insecure options (e.g., eval, dynamic loading, root login).",
             "EncryptionDisabled": "Enable encryption to protect data at rest.",
             "MFADisabled": "Enable MFA to secure access.",
             "WeakPassword": "Use a stronger password or integrate with a secrets management system.",
             "OpenPortExposure": "Restrict access to open ports using firewalls or security groups.",
-            "PrivilegedContainer": "Avoid running containers in privileged mode; run with the least privileges.",
+            "PrivilegedContainer": "Avoid running containers in privileged mode; run with least privileges.",
             "PublicAccessEnabled": "Restrict public access by applying proper access controls and encryption.",
-            "OverlyPermissiveIAMRole": "Limit permissions to only what is necessary.",
+            "OverlyPermissiveIAMRole": "Limit permissions to only what is strictly necessary.",
             "WideOpenSecurityGroup": "Restrict inbound/outbound traffic to specific IP ranges.",
             "IAMPolicyOverlyPermissive": "Review and tighten IAM policy bindings.",
             "CloudFrontInsecure": "Configure CloudFront to enforce HTTPS.",
-            "OSLoginDisabled": "Enable OS Login for compute instances.",
+            "OSLoginDisabled": "Enable OS Login on compute instances for better security.",
             "ShieldedVMDisabled": "Enable Shielded VM features.",
-            "SerialPortDebugEnabled": "Disable serial port debugging.",
+            "SerialPortDebugEnabled": "Disable serial port debugging in production.",
             "LoggingMonitoringDisabled": "Enable logging and monitoring for better observability.",
-            "LegacyABACEnabled": "Disable legacy ABAC; enable RBAC and network policies.",
-            "NoKeyRotation": "Enable key rotation for improved key security.",
+            "LegacyABACEnabled": "Disable legacy ABAC; enable RBAC and network policies on container clusters.",
+            "NoKeyRotation": "Enable key rotation to improve key security.",
             "CloudTrailMisconfigured": "Enable multi-region trails, log file validation, and encryption for CloudTrail."
         }
         vtype = vuln.get("type")
         vuln["remediation"] = remediation_dict.get(vtype, "Review configuration and apply security best practices.")
         return vuln
 
-    # --- General Vulnerability Checks ---
+    def create_vulnerability(self, vuln_type, key_path, message, severity):
+        vuln = {
+            "type": vuln_type,
+            "key": key_path,
+            "message": message,
+            "severity": severity
+        }
+        return self.add_remediation(vuln)
+
+    # ========== General Checks ==========
 
     def check_sensitive_keys(self, config, parent_key=""):
+        """
+        Recursively checks for short plain-text secrets (password, secret, api_key, token).
+        """
         vulnerabilities = []
         if isinstance(config, dict):
             for key, value in config.items():
@@ -41,14 +53,14 @@ class VulnerabilityScanner:
                 lower_key = key.lower()
                 if any(term in lower_key for term in ["password", "secret", "api_key", "token"]):
                     if isinstance(value, str):
+                        # If length <20 or not "ENC(" => SensitiveInformationExposure
                         if len(value) < 20 or not value.startswith("ENC("):
-                            vuln = {
-                                "type": "SensitiveInformationExposure",
-                                "key": key_path,
-                                "message": f"Key '{key_path}' may contain sensitive data in plain text.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+                            vulnerabilities.append(self.create_vulnerability(
+                                "SensitiveInformationExposure",
+                                key_path,
+                                f"Key '{key_path}' may contain sensitive data in plain text.",
+                                "High"
+                            ))
                 vulnerabilities.extend(self.check_sensitive_keys(value, key_path))
         elif isinstance(config, list):
             for index, item in enumerate(config):
@@ -57,18 +69,20 @@ class VulnerabilityScanner:
         return vulnerabilities
 
     def check_debug_flags(self, config, parent_key=""):
+        """
+        Recursively checks for "debug": true
+        """
         vulnerabilities = []
         if isinstance(config, dict):
             for key, value in config.items():
                 key_path = f"{parent_key}.{key}" if parent_key else key
                 if key.lower() == "debug" and isinstance(value, bool) and value:
-                    vuln = {
-                        "type": "DebugModeEnabled",
-                        "key": key_path,
-                        "message": f"Debug mode is enabled at '{key_path}'.",
-                        "severity": "Medium"
-                    }
-                    vulnerabilities.append(self.add_remediation(vuln))
+                    vulnerabilities.append(self.create_vulnerability(
+                        "DebugModeEnabled",
+                        key_path,
+                        f"Debug mode is enabled at '{key_path}'.",
+                        "Medium"
+                    ))
                 vulnerabilities.extend(self.check_debug_flags(value, key_path))
         elif isinstance(config, list):
             for index, item in enumerate(config):
@@ -77,18 +91,20 @@ class VulnerabilityScanner:
         return vulnerabilities
 
     def check_insecure_configurations(self, config, parent_key=""):
+        """
+        Checks for use_eval, allow_dynamic_loading, allow_root_login => InsecureConfiguration
+        """
         vulnerabilities = []
         if isinstance(config, dict):
             for key, value in config.items():
                 key_path = f"{parent_key}.{key}" if parent_key else key
                 if key.lower() in ["use_eval", "allow_dynamic_loading", "allow_root_login"] and value is True:
-                    vuln = {
-                        "type": "InsecureConfiguration",
-                        "key": key_path,
-                        "message": f"Key '{key_path}' is set to True, indicating an insecure configuration.",
-                        "severity": "High"
-                    }
-                    vulnerabilities.append(self.add_remediation(vuln))
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        key_path,
+                        f"Key '{key_path}' is set to True, indicating an insecure configuration.",
+                        "High"
+                    ))
                 vulnerabilities.extend(self.check_insecure_configurations(value, key_path))
         elif isinstance(config, list):
             for index, item in enumerate(config):
@@ -103,752 +119,499 @@ class VulnerabilityScanner:
         vulns.extend(self.check_insecure_configurations(config, parent_key))
         return vulns
 
-    # --- Resource-Specific Vulnerability Checks ---
+    # ========== Resource-Specific Checks ==========
 
     def scan_resources(self, config):
         vulnerabilities = []
         resources = config.get("resources", [])
-        if isinstance(resources, list):
-            for idx, res in enumerate(resources):
-                res_key = f"resources[{idx}]"
-                rtype = res.get("type", "").lower()
-                match rtype:
-                    #aws
-                    case "s3_bucket":
-                        if res.get("public_read_access") is True or res.get("public_write_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": res_key,
-                                "message": f"S3 Bucket '{res.get('name')}' has public access enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encryption",
-                                "message": f"S3 Bucket '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                    case "ec2_instance":
-                        password = res.get("password", "")
-                        if password and (len(password) < 8 or "weak" in password.lower()):
-                            vuln = {
-                                "type": "WeakPassword",
-                                "key": f"{res_key}.password",
-                                "message": f"EC2 Instance '{res.get('name')}' is using a weak password.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encryption",
-                                "message": f"EC2 Instance '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"EC2 Instance '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("allow_root_login") is True:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.allow_root_login",
-                                "message": f"EC2 Instance '{res.get('name')}' allows root login.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        open_ports = res.get("open_ports", [])
-                        if any(port in open_ports for port in [22, 3389]):
-                            vuln = {
-                                "type": "OpenPortExposure",
-                                "key": f"{res_key}.open_ports",
-                                "message": f"EC2 Instance '{res.get('name')}' has sensitive ports open (SSH/RDP).",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+        if not isinstance(resources, list):
+            return vulnerabilities  # If "resources" not a list, skip
 
-                    case "security_group":
-                        rules = res.get("rules", [])
-                        for rule in rules:
-                            source = rule.get("source") or rule.get("destination")
-                            if source == "0.0.0.0/0":
-                                vuln = {
-                                    "type": "WideOpenSecurityGroup",
-                                    "key": f"{res_key}.rules",
-                                    "message": f"Security Group '{res.get('name')}' allows unrestricted access.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
+        for idx, res in enumerate(resources):
+            res_key = f"resources[{idx}]"
+            rtype = str(res.get("type", "")).lower().strip()
 
-                    case "iam_role":
-                        permissions = res.get("permissions", [])
-                        for perm in permissions:
-                            actions = perm.get("Action")
-                            if isinstance(actions, str):
-                                actions = [actions]
-                            if "*" in actions:
-                                vuln = {
-                                    "type": "OverlyPermissiveIAMRole",
-                                    "key": f"{res_key}.permissions",
-                                    "message": f"IAM Role '{res.get('name')}' grants overly permissive access.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS EC2 Instance ----------
+            if rtype == "ec2_instance":
+                password = res.get("password", "")
+                # => WeakPassword if <8 or "weak"
+                if password and (len(password) < 8 or "weak" in password.lower()):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "WeakPassword",
+                        f"{res_key}.password",
+                        f"EC2 Instance '{res.get('name')}' is using a weak password.",
+                        "High"
+                    ))
+                # => EncryptionDisabled if "encryption": false
+                if res.get("encryption") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.encryption",
+                        f"EC2 Instance '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
+                # => MFADisabled if "mfa_enabled": false
+                if res.get("mfa_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "MFADisabled",
+                        f"{res_key}.mfa_enabled",
+                        f"EC2 Instance '{res.get('name')}' does not have MFA enabled.",
+                        "Medium"
+                    ))
+                # => InsecureConfiguration if "allow_root_login": true
+                if res.get("allow_root_login") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.allow_root_login",
+                        f"EC2 Instance '{res.get('name')}' allows root login.",
+                        "High"
+                    ))
+                # => OpenPortExposure if 22 or 3389 in open_ports
+                open_ports = res.get("open_ports", [])
+                if any(port in open_ports for port in [22, 3389]):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "OpenPortExposure",
+                        f"{res_key}.open_ports",
+                        f"EC2 Instance '{res.get('name')}' has sensitive ports open (SSH/RDP).",
+                        "Medium"
+                    ))
 
-                    case "rds_instance":
-                        if res.get("storage_encrypted") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.storage_encrypted",
-                                "message": f"RDS Instance '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("public_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_access",
-                                "message": f"RDS Instance '{res.get('name')}' is publicly accessible.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"RDS Instance '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS S3 Bucket ----------
+            elif rtype == "s3_bucket":
+                # => PublicAccessEnabled if public_read_access or public_write_access is True
+                if res.get("public_read_access") is True or res.get("public_write_access") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        res_key,
+                        f"S3 Bucket '{res.get('name')}' has public access enabled.",
+                        "High"
+                    ))
+                # => EncryptionDisabled if "encryption": false
+                if res.get("encryption") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.encryption",
+                        f"S3 Bucket '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
 
-                    # GCP Resources
-                    case "gcs_bucket":
-                        if res.get("public_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_access",
-                                "message": f"GCS Bucket '{res.get('name')}' is publicly accessible.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encryption",
-                                "message": f"GCS Bucket '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS IAM Role ----------
+            elif rtype == "iam_role":
+                permissions = res.get("permissions", [])
+                for perm in permissions:
+                    actions = perm.get("Action")
+                    if isinstance(actions, str):
+                        actions = [actions]
+                    if actions and "*" in actions:
+                        vulnerabilities.append(self.create_vulnerability(
+                            "OverlyPermissiveIAMRole",
+                            f"{res_key}.permissions",
+                            f"IAM Role '{res.get('name')}' grants overly permissive access.",
+                            "High"
+                        ))
 
-                    case "compute_instance":
-                        password = res.get("password", "")
-                        if password and (len(password) < 8 or "weak" in password.lower()):
-                            vuln = {
-                                "type": "WeakPassword",
-                                "key": f"{res_key}.password",
-                                "message": f"Compute Instance '{res.get('name')}' is using a weak password.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("disk_encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.disk_encryption",
-                                "message": f"Compute Instance '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"Compute Instance '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        open_ports = res.get("open_ports", [])
-                        if any(port in open_ports for port in [22, 3389]):
-                            vuln = {
-                                "type": "OpenPortExposure",
-                                "key": f"{res_key}.open_ports",
-                                "message": f"Compute Instance '{res.get('name')}' has sensitive ports open (SSH/RDP).",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS RDS Instance ----------
+            elif rtype == "rds_instance":
+                if res.get("storage_encrypted") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.storage_encrypted",
+                        f"RDS Instance '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
+                if res.get("public_access") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        f"{res_key}.public_access",
+                        f"RDS Instance '{res.get('name')}' is publicly accessible.",
+                        "High"
+                    ))
+                if res.get("mfa_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "MFADisabled",
+                        f"{res_key}.mfa_enabled",
+                        f"RDS Instance '{res.get('name')}' does not have MFA enabled.",
+                        "Medium"
+                    ))
 
-                    #azure
-                    case "storage_account":
-                        if res.get("public_access") not in [None, "None"]:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_access",
-                                "message": f"Storage Account '{res.get('name')}' has public access enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("encryption_enabled") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encryption_enabled",
-                                "message": f"Storage Account '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("soft_delete_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.soft_delete_enabled",
-                                "message": f"Storage Account '{res.get('name')}' does not have soft delete enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS Security Group ----------
+            elif rtype == "security_group":
+                rules = res.get("rules", [])
+                for rule in rules:
+                    source = rule.get("source") or rule.get("destination")
+                    if source == "0.0.0.0/0":
+                        vulnerabilities.append(self.create_vulnerability(
+                            "WideOpenSecurityGroup",
+                            f"{res_key}.rules",
+                            f"Security Group '{res.get('name')}' allows unrestricted access.",
+                            "High"
+                        ))
 
-                    case "virtual_machine":
-                        
-                        if res.get("password") and (len(res.get("password")) < 8 or "weak" in res.get("password").lower()):
-                            vuln = {
-                                "type": "WeakPassword",
-                                "key": f"{res_key}.password",
-                                "message": f"Virtual Machine '{res.get('name')}' is using a weak password.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("os_disk_encryption_enabled") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.os_disk_encryption_enabled",
-                                "message": f"Virtual Machine '{res.get('name')}' has OS disk unencrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("boot_diagnostics_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.boot_diagnostics_enabled",
-                                "message": f"Virtual Machine '{res.get('name')}' does not have boot diagnostics enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("just_in_time_access_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.just_in_time_access_enabled",
-                                "message": f"Virtual Machine '{res.get('name')}' does not have JIT access enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        open_ports = res.get("open_ports", [])
-                        if any(port in open_ports for port in [3389, 22]):
-                            vuln = {
-                                "type": "OpenPortExposure",
-                                "key": f"{res_key}.open_ports",
-                                "message": f"Virtual Machine '{res.get('name')}' has sensitive ports open.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- Azure Storage Account ----------
+            elif rtype == "storage_account":
+                # If "public_access" != None/"" => public
+                public_access = str(res.get("public_access", "")).lower()
+                if public_access not in ["none", ""]:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        f"{res_key}.public_access",
+                        f"Storage Account '{res.get('name')}' has public access '{res.get('public_access')}'.",
+                        "High"
+                    ))
+                if res.get("encryption_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.encryption_enabled",
+                        f"Storage Account '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
+                if res.get("soft_delete_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.soft_delete_enabled",
+                        f"Storage Account '{res.get('name')}' does not have soft delete enabled.",
+                        "Medium"
+                    ))
 
-                    case "network_security_group":
-                        rules = res.get("rules", [])
-                        for rule in rules:
-                            source = rule.get("source")
-                            if source == "0.0.0.0/0":
-                                vuln = {
-                                    "type": "WideOpenSecurityGroup",
-                                    "key": f"{res_key}.rules",
-                                    "message": f"Network Security Group '{res.get('name')}' allows unrestricted access.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- Azure Key Vault ----------
+            elif rtype == "key_vault":
+                if res.get("public_network_access") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        f"{res_key}.public_network_access",
+                        f"Key Vault '{res.get('name')}' has public network access enabled.",
+                        "High"
+                    ))
+                if res.get("firewall_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.firewall_enabled",
+                        f"Key Vault '{res.get('name')}' does not have a firewall enabled.",
+                        "Medium"
+                    ))
+                if res.get("soft_delete_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.soft_delete_enabled",
+                        f"Key Vault '{res.get('name')}' does not have soft delete enabled.",
+                        "Medium"
+                    ))
 
-                    case "role_assignment":
-                        if res.get("role").lower() in ["owner"] and res.get("assigned_to").lower() in ["everyone", "allusers"]:
-                            vuln = {
-                                "type": "OverlyPermissiveIAMRole",
-                                "key": f"{res_key}.role_assignment",
-                                "message": f"Role Assignment '{res.get('name')}' grants overly permissive access.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- Azure Virtual Machine ----------
+            elif rtype == "virtual_machine":
+                password = res.get("password", "")
+                # => WeakPassword
+                if password and (len(password) < 8 or "weak" in password.lower()):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "WeakPassword",
+                        f"{res_key}.password",
+                        f"Virtual Machine '{res.get('name')}' is using a weak password.",
+                        "High"
+                    ))
+                # => EncryptionDisabled if "os_disk_encryption_enabled": false OR "encryption": false
+                encryption_flag = res.get("encryption")
+                os_disk_flag = res.get("os_disk_encryption_enabled")
+                if encryption_flag is False or os_disk_flag is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.encryption",
+                        f"Virtual Machine '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
+                # => InsecureConfiguration if "boot_diagnostics_enabled" or "just_in_time_access_enabled" is false
+                if res.get("boot_diagnostics_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.boot_diagnostics_enabled",
+                        f"Virtual Machine '{res.get('name')}' does not have boot diagnostics enabled.",
+                        "Medium"
+                    ))
+                if res.get("just_in_time_access_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.just_in_time_access_enabled",
+                        f"Virtual Machine '{res.get('name')}' does not have JIT access enabled.",
+                        "Medium"
+                    ))
+                # => OpenPortExposure => 22 or 3389
+                open_ports = res.get("open_ports", [])
+                if any(port in open_ports for port in [22, 3389]):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "OpenPortExposure",
+                        f"{res_key}.open_ports",
+                        f"Virtual Machine '{res.get('name')}' has sensitive ports open.",
+                        "Medium"
+                    ))
 
-                    case "policy_assignment":
-                        if res.get("policy_definition_name") is None:
-                            vuln = {
-                                "type": "IAMPolicyOverlyPermissive",
-                                "key": f"{res_key}.policy_assignment",
-                                "message": f"Policy Assignment '{res.get('name')}' does not enforce a security baseline.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP Compute Instance ----------
+            elif rtype == "compute_instance":
+                password = res.get("password", "")
+                if password and (len(password) < 8 or "weak" in password.lower()):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "WeakPassword",
+                        f"{res_key}.password",
+                        f"Compute Instance '{res.get('name')}' is using a weak password.",
+                        "High"
+                    ))
+                if res.get("disk_encryption") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.disk_encryption",
+                        f"Compute Instance '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
+                if res.get("mfa_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "MFADisabled",
+                        f"{res_key}.mfa_enabled",
+                        f"Compute Instance '{res.get('name')}' does not have MFA enabled.",
+                        "Medium"
+                    ))
+                open_ports = res.get("open_ports", [])
+                if any(port in open_ports for port in [22, 3389]):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "OpenPortExposure",
+                        f"{res_key}.open_ports",
+                        f"Compute Instance '{res.get('name')}' has sensitive ports open (SSH/RDP).",
+                        "Medium"
+                    ))
 
-                    case "key_vault":
-                        if res.get("public_network_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_network_access",
-                                "message": f"Key Vault '{res.get('name')}' has public network access enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("firewall_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.firewall_enabled",
-                                "message": f"Key Vault '{res.get('name')}' does not have a firewall enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("soft_delete_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.soft_delete_enabled",
-                                "message": f"Key Vault '{res.get('name')}' does not have soft delete enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP Firewall Rule ----------
+            elif rtype == "firewall_rule":
+                rules = res.get("rules", [])
+                for rule in rules:
+                    source = rule.get("source")
+                    if source == "0.0.0.0/0":
+                        vulnerabilities.append(self.create_vulnerability(
+                            "WideOpenSecurityGroup",
+                            f"{res_key}.rules",
+                            f"Firewall Rule '{res.get('name')}' allows unrestricted access.",
+                            "High"
+                        ))
 
-                    case "log_analytics_workspace":
-                        if res.get("retention_in_days", 0) == 0:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.retention_in_days",
-                                "message": f"Log Analytics Workspace '{res.get('name')}' has no data retention configured.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP Container Cluster ----------
+            elif rtype == "container_cluster":
+                if res.get("legacy_abac_enabled") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "LegacyABACEnabled",
+                        f"{res_key}.legacy_abac_enabled",
+                        f"Container Cluster '{res.get('name')}' has legacy ABAC enabled.",
+                        "High"
+                    ))
+                if res.get("basic_auth_enabled") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.basic_auth_enabled",
+                        f"Container Cluster '{res.get('name')}' uses basic auth, which is insecure.",
+                        "High"
+                    ))
 
-                    case "sql_server":
-                        if res.get("azure_ad_admin_configured") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.azure_ad_admin_configured",
-                                "message": f"SQL Server '{res.get('name')}' does not have an Azure AD admin configured.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("audit_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.audit_enabled",
-                                "message": f"SQL Server '{res.get('name')}' does not have auditing enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("threat_detection_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.threat_detection_enabled",
-                                "message": f"SQL Server '{res.get('name')}' does not have threat detection enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("transparent_data_encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.transparent_data_encryption",
-                                "message": f"SQL Server '{res.get('name')}' does not have transparent data encryption enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP Logging / Monitoring ----------
+            elif rtype == "cloud_logging":
+                if res.get("enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "LoggingMonitoringDisabled",
+                        f"{res_key}.enabled",
+                        f"Cloud Logging '{res.get('name')}' is disabled.",
+                        "Medium"
+                    ))
+            elif rtype == "cloud_monitoring":
+                if res.get("enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "LoggingMonitoringDisabled",
+                        f"{res_key}.enabled",
+                        f"Cloud Monitoring '{res.get('name')}' is disabled.",
+                        "Medium"
+                    ))
 
-                    case "sql_database":
-                        if res.get("encryption_enabled") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encryption_enabled",
-                                "message": f"SQL Database '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("public_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_access",
-                                "message": f"SQL Database '{res.get('name')}' is publicly accessible.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"SQL Database '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP IAM Policy ----------
+            elif rtype == "iam_policy":
+                bindings = res.get("bindings", [])
+                for binding in bindings:
+                    role = binding.get("role", "").lower()
+                    members = binding.get("members", [])
+                    if role == "roles/owner" and any(m.lower() in ["allusers", "everyone"] for m in members):
+                        vulnerabilities.append(self.create_vulnerability(
+                            "OverlyPermissiveIAMRole",
+                            f"{res_key}.iam_policy",
+                            f"IAM Policy '{res.get('name')}' grants overly permissive access.",
+                            "High"
+                        ))
 
-                    case "app_service":
-                        if res.get("https_only") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.https_only",
-                                "message": f"App Service '{res.get('name')}' does not enforce HTTPS.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("ftps_state") == "AllAllowed":
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.ftps_state",
-                                "message": f"App Service '{res.get('name')}' allows FTPS, which might expose credentials.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("client_cert_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.client_cert_enabled",
-                                "message": f"App Service '{res.get('name')}' does not require client certificates.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("remote_debug_enabled") is True:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.remote_debug_enabled",
-                                "message": f"App Service '{res.get('name')}' has remote debugging enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP Cloud SQL ----------
+            elif rtype == "cloud_sql":
+                if res.get("disk_encryption") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.disk_encryption",
+                        f"Cloud SQL Instance '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
+                if res.get("public_access") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        f"{res_key}.public_access",
+                        f"Cloud SQL Instance '{res.get('name')}' is publicly accessible.",
+                        "High"
+                    ))
+                if res.get("require_ssl") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.require_ssl",
+                        f"Cloud SQL Instance '{res.get('name')}' does not require SSL.",
+                        "Medium"
+                    ))
+                if res.get("root_password") and (len(res.get("root_password")) < 8 or "weak" in res.get("root_password").lower()):
+                    vulnerabilities.append(self.create_vulnerability(
+                        "WeakPassword",
+                        f"{res_key}.root_password",
+                        f"Cloud SQL Instance '{res.get('name')}' is using a weak root password.",
+                        "High"
+                    ))
+                if res.get("mfa_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "MFADisabled",
+                        f"{res_key}.mfa_enabled",
+                        f"Cloud SQL Instance '{res.get('name')}' does not have MFA enabled.",
+                        "Medium"
+                    ))
 
-                    case "aks_cluster":
-                        if res.get("rbac_enabled") is False:
-                            vuln = {
-                                "type": "LegacyABACEnabled",
-                                "key": f"{res_key}.rbac_enabled",
-                                "message": f"AKS Cluster '{res.get('name')}' does not have RBAC enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("network_policy_enabled") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.network_policy_enabled",
-                                "message": f"AKS Cluster '{res.get('name')}' does not have network policies enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP BigQuery Dataset ----------
+            elif rtype == "bigquery_dataset":
+                if res.get("public_access") is True:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        f"{res_key}.public_access",
+                        f"BigQuery Dataset '{res.get('name')}' is publicly accessible.",
+                        "High"
+                    ))
+                if str(res.get("encryption", "")).upper() == "NONE":
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.encryption",
+                        f"BigQuery Dataset '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
 
-                    #gcp
-                    case "compute_instance":
-                        password = res.get("password", "")
-                        if password and (len(password) < 8 or "weak" in password.lower()):
-                            vuln = {
-                                "type": "WeakPassword",
-                                "key": f"{res_key}.password",
-                                "message": f"Compute Instance '{res.get('name')}' is using a weak password.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("disk_encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.disk_encryption",
-                                "message": f"Compute Instance '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"Compute Instance '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        open_ports = res.get("open_ports", [])
-                        if any(port in open_ports for port in [22, 3389]):
-                            vuln = {
-                                "type": "OpenPortExposure",
-                                "key": f"{res_key}.open_ports",
-                                "message": f"Compute Instance '{res.get('name')}' has sensitive ports open (SSH/RDP).",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- GCP DNS Managed Zone ----------
+            elif rtype == "dns_managed_zone":
+                if str(res.get("visibility", "")).lower().strip() == "public":
+                    vulnerabilities.append(self.create_vulnerability(
+                        "PublicAccessEnabled",
+                        f"{res_key}.visibility",
+                        f"DNS Managed Zone '{res.get('name')}' is publicly visible.",
+                        "Medium"
+                    ))
 
-                    case "firewall_rule":
-                        rules = res.get("rules", [])
-                        for rule in rules:
-                            source = rule.get("source")
-                            if source == "0.0.0.0/0":
-                                vuln = {
-                                    "type": "WideOpenSecurityGroup",
-                                    "key": f"{res_key}.rules",
-                                    "message": f"Firewall Rule '{res.get('name')}' allows unrestricted access.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS CloudTrail ----------
+            elif rtype == "cloudtrail":
+                if res.get("multi_region_trail") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "CloudTrailMisconfigured",
+                        f"{res_key}.multi_region_trail",
+                        f"CloudTrail '{res.get('name')}' is not configured for multi-region trails.",
+                        "Medium"
+                    ))
+                if res.get("log_file_validation_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "CloudTrailMisconfigured",
+                        f"{res_key}.log_file_validation_enabled",
+                        f"CloudTrail '{res.get('name')}' does not have log file validation enabled.",
+                        "Medium"
+                    ))
+                if res.get("encrypted") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "EncryptionDisabled",
+                        f"{res_key}.encrypted",
+                        f"CloudTrail '{res.get('name')}' is not encrypted.",
+                        "High"
+                    ))
 
-                    case "iam_policy":
-                        bindings = res.get("bindings", [])
-                        for binding in bindings:
-                            role = binding.get("role", "").lower()
-                            members = binding.get("members", [])
-                            if role == "roles/owner" and any(m.lower() in ["allusers", "everyone"] for m in members):
-                                vuln = {
-                                    "type": "OverlyPermissiveIAMRole",
-                                    "key": f"{res_key}.iam_policy",
-                                    "message": f"IAM Policy '{res.get('name')}' grants overly permissive access.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS KMS Key ----------
+            elif rtype == "kms_key":
+                if res.get("rotation_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "NoKeyRotation",
+                        f"{res_key}.rotation_enabled",
+                        f"KMS Key '{res.get('name')}' does not have key rotation enabled.",
+                        "Medium"
+                    ))
 
-                    case "cloud_logging":
-                        if res.get("enabled") is False:
-                            vuln = {
-                                "type": "LoggingMonitoringDisabled",
-                                "key": f"{res_key}.enabled",
-                                "message": f"Cloud Logging '{res.get('name')}' is disabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS IAM User ----------
+            elif rtype == "iam_user":
+                if res.get("mfa_enabled") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "MFADisabled",
+                        f"{res_key}.mfa_enabled",
+                        f"IAM User '{res.get('name')}' does not have MFA enabled.",
+                        "Medium"
+                    ))
+                inline_policies = res.get("inline_policies", [])
+                for policy in inline_policies:
+                    doc = policy.get("PolicyDocument", {})
+                    statements = doc.get("Statement", [])
+                    for stmt in statements:
+                        action = stmt.get("Action")
+                        if isinstance(action, str):
+                            action = [action]
+                        if action and "*" in action:
+                            vulnerabilities.append(self.create_vulnerability(
+                                "OverlyPermissiveIAMRole",
+                                f"{res_key}.inline_policies",
+                                f"IAM User '{res.get('name')}' has an overly permissive inline policy.",
+                                "High"
+                            ))
 
-                    case "cloud_monitoring":
-                        if res.get("enabled") is False:
-                            vuln = {
-                                "type": "LoggingMonitoringDisabled",
-                                "key": f"{res_key}.enabled",
-                                "message": f"Cloud Monitoring '{res.get('name')}' is disabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS Lambda Function ----------
+            elif rtype == "lambda_function":
+                permissions = res.get("lambda_permissions", [])
+                for perm in permissions:
+                    action = perm.get("Action")
+                    if isinstance(action, str):
+                        action = [action]
+                    if action and "*" in action:
+                        vulnerabilities.append(self.create_vulnerability(
+                            "OverlyPermissiveIAMRole",
+                            f"{res_key}.lambda_permissions",
+                            f"Lambda Function '{res.get('name')}' has overly permissive permissions.",
+                            "High"
+                        ))
 
-                    case "container_cluster":
-                        if res.get("legacy_abac_enabled") is True:
-                            vuln = {
-                                "type": "LegacyABACEnabled",
-                                "key": f"{res_key}.legacy_abac_enabled",
-                                "message": f"Container Cluster '{res.get('name')}' has legacy ABAC enabled.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("basic_auth_enabled") is True:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.basic_auth_enabled",
-                                "message": f"Container Cluster '{res.get('name')}' uses basic auth, which is insecure.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS CloudFront Distribution ----------
+            elif rtype == "cloudfront_distribution":
+                if str(res.get("viewer_protocol_policy", "")).lower() != "redirect-to-https":
+                    vulnerabilities.append(self.create_vulnerability(
+                        "CloudFrontInsecure",
+                        f"{res_key}.viewer_protocol_policy",
+                        f"CloudFront Distribution '{res.get('name')}' does not enforce HTTPS.",
+                        "Medium"
+                    ))
 
-                    case "service_account":
-                        if res.get("key_rotation_enabled") is False:
-                            vuln = {
-                                "type": "NoKeyRotation",
-                                "key": f"{res_key}.key_rotation_enabled",
-                                "message": f"Service Account '{res.get('name')}' does not have key rotation enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        roles = res.get("roles", [])
-                        if any("owner" in role.lower() for role in roles):
-                            vuln = {
-                                "type": "OverlyPermissiveIAMRole",
-                                "key": f"{res_key}.roles",
-                                "message": f"Service Account '{res.get('name')}' has overly permissive roles assigned.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
+            # ---------- AWS Cloud Config ----------
+            elif rtype == "cloud_config":
+                if res.get("recording_all_resources") is False:
+                    vulnerabilities.append(self.create_vulnerability(
+                        "InsecureConfiguration",
+                        f"{res_key}.recording_all_resources",
+                        f"Cloud Config '{res.get('name')}' is not recording all resources.",
+                        "Medium"
+                    ))
 
-                    case "cloud_sql":
-                        if res.get("disk_encryption") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.disk_encryption",
-                                "message": f"Cloud SQL Instance '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("public_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_access",
-                                "message": f"Cloud SQL Instance '{res.get('name')}' is publicly accessible.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("require_ssl") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.require_ssl",
-                                "message": f"Cloud SQL Instance '{res.get('name')}' does not require SSL.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("root_password") and (len(res.get("root_password")) < 8 or "weak" in res.get("root_password").lower()):
-                            vuln = {
-                                "type": "WeakPassword",
-                                "key": f"{res_key}.root_password",
-                                "message": f"Cloud SQL Instance '{res.get('name')}' is using a weak root password.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"Cloud SQL Instance '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "bigquery_dataset":
-                        if res.get("public_access") is True:
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.public_access",
-                                "message": f"BigQuery Dataset '{res.get('name')}' is publicly accessible.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("encryption") == "NONE":
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encryption",
-                                "message": f"BigQuery Dataset '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "dns_managed_zone":
-                        if res.get("visibility", "").lower() == "public":
-                            vuln = {
-                                "type": "PublicAccessEnabled",
-                                "key": f"{res_key}.visibility",
-                                "message": f"DNS Managed Zone '{res.get('name')}' is publicly visible.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "iam_policy":
-                        bindings = res.get("bindings", [])
-                        for binding in bindings:
-                            role = binding.get("role", "").lower()
-                            members = binding.get("members", [])
-                            if role == "roles/owner" and any(m.lower() in ["allusers", "everyone"] for m in members):
-                                vuln = {
-                                    "type": "OverlyPermissiveIAMRole",
-                                    "key": f"{res_key}.iam_policy",
-                                    "message": f"IAM Policy '{res.get('name')}' grants overly permissive access.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "cloudtrail":
-                        if res.get("multi_region_trail") is False:
-                            vuln = {
-                                "type": "CloudTrailMisconfigured",
-                                "key": f"{res_key}.multi_region_trail",
-                                "message": f"CloudTrail '{res.get('name')}' is not configured for multi-region trails.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("log_file_validation_enabled") is False:
-                            vuln = {
-                                "type": "CloudTrailMisconfigured",
-                                "key": f"{res_key}.log_file_validation_enabled",
-                                "message": f"CloudTrail '{res.get('name')}' does not have log file validation enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        if res.get("encrypted") is False:
-                            vuln = {
-                                "type": "EncryptionDisabled",
-                                "key": f"{res_key}.encrypted",
-                                "message": f"CloudTrail '{res.get('name')}' is not encrypted.",
-                                "severity": "High"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "kms_key":
-                        if res.get("rotation_enabled") is False:
-                            vuln = {
-                                "type": "NoKeyRotation",
-                                "key": f"{res_key}.rotation_enabled",
-                                "message": f"KMS Key '{res.get('name')}' does not have key rotation enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "iam_user":
-                        if res.get("mfa_enabled") is False:
-                            vuln = {
-                                "type": "MFADisabled",
-                                "key": f"{res_key}.mfa_enabled",
-                                "message": f"IAM User '{res.get('name')}' does not have MFA enabled.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-                        inline_policies = res.get("inline_policies", [])
-                        for policy in inline_policies:
-                            doc = policy.get("PolicyDocument", {})
-                            statements = doc.get("Statement", [])
-                            for stmt in statements:
-                                action = stmt.get("Action")
-                                if isinstance(action, str):
-                                    action = [action]
-                                if "*" in action:
-                                    vuln = {
-                                        "type": "OverlyPermissiveIAMRole",
-                                        "key": f"{res_key}.inline_policies",
-                                        "message": f"IAM User '{res.get('name')}' has an overly permissive inline policy.",
-                                        "severity": "High"
-                                    }
-                                    vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "lambda_function":
-                        permissions = res.get("lambda_permissions", [])
-                        for perm in permissions:
-                            action = perm.get("Action")
-                            if isinstance(action, str):
-                                action = [action]
-                            if "*" in action:
-                                vuln = {
-                                    "type": "OverlyPermissiveIAMRole",
-                                    "key": f"{res_key}.lambda_permissions",
-                                    "message": f"Lambda Function '{res.get('name')}' has overly permissive permissions.",
-                                    "severity": "High"
-                                }
-                                vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "cloudfront_distribution":
-                        if res.get("viewer_protocol_policy", "").lower() != "redirect-to-https":
-                            vuln = {
-                                "type": "CloudFrontInsecure",
-                                "key": f"{res_key}.viewer_protocol_policy",
-                                "message": f"CloudFront Distribution '{res.get('name')}' does not enforce HTTPS.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case "cloud_config":
-                        if res.get("recording_all_resources") is False:
-                            vuln = {
-                                "type": "InsecureConfiguration",
-                                "key": f"{res_key}.recording_all_resources",
-                                "message": f"Cloud Config '{res.get('name')}' is not recording all resources.",
-                                "severity": "Medium"
-                            }
-                            vulnerabilities.append(self.add_remediation(vuln))
-
-                    case _:
-                        # Unrecognized resource types – no specific checks.
-                        pass
+            else:
+                # If unrecognized resource type, do nothing
+                pass
 
         return vulnerabilities
 
     def scan(self, config, report_format="dict"):
+        """Combine general + resource-specific checks; optionally produce txt or json."""
         vulnerabilities = []
         vulnerabilities.extend(self.scan_general(config))
         vulnerabilities.extend(self.scan_resources(config))
-        unique_vulns = { (v["type"], v["key"]): v for v in vulnerabilities }.values()
+
+        # De-duplicate
+        unique_vulns = {(v["type"], v["key"]): v for v in vulnerabilities}.values()
+
         if report_format == "dict":
             return list(unique_vulns)
         elif report_format == "txt":
@@ -859,9 +622,7 @@ class VulnerabilityScanner:
             return list(unique_vulns)
 
     def generate_text_report(self, vulnerabilities):
-        lines = []
-        lines.append("Vulnerability Scan Report")
-        lines.append("")
+        lines = ["Vulnerability Scan Report\n"]
         if not vulnerabilities:
             lines.append("No vulnerabilities found.")
         else:
