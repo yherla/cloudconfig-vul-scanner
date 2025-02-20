@@ -10,10 +10,13 @@
     {% for vuln in report.details %}
       <li>
         <strong>{{ vuln.type }}</strong> - Severity: {{ vuln.severity }}<br>
-        {{ vuln.message }}
+        {{ vuln.message }}<br>
+        <em>Remediation:</em> {{ vuln.remediation }}
       </li>
     {% endfor %}
   </ul>
+  <a href="{{ url_for('download_csv') }}">Download CSV Report</a>
+  <br>
   <a href="{{ url_for('index') }}">Upload Another File</a>
 </body>
 </html>
