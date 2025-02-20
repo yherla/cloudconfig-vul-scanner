@@ -1,0 +1,7 @@
+organization=yherla
+projectKey=yherla_cloudconfig-vul-scanner
+serverUrl=https://sonarcloud.io
+serverVersion=8.0.0.59862
+dashboardUrl=https://sonarcloud.io/dashboard?id=yherla_cloudconfig-vul-scanner
+ceTaskId=AZUg1jU1dY4llciu1Ukg
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZUg1jU1dY4llciu1Ukg

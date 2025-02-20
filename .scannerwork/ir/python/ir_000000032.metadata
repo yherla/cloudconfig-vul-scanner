@@ -1,0 +1,10 @@
+/Users/jordi.yherla/Desktop/repos/cloudconfig-vul-scanner/src/app.#__main__
+false
+9012ff0a54e324c15aa07ee708767fc9
+builtins.print
+flask.app.Flask.__init__
+os.path.abspath
+os.path.dirname
+os.path.join
+==
+get
