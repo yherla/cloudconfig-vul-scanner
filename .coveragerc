@@ -1,0 +1,6 @@
+[run]
+source = src
+relative_files = True
+
+[report]
+show_missing = True
