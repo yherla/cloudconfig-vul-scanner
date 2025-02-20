@@ -42,7 +42,11 @@ htmlcov/
 .nox/
 .coverage
 .coverage.*
+coverage-reports/*
 .cache
+*.pyc
+*.pyo
+*.pyd
 nosetests.xml
 coverage.xml
 *.cover
@@ -169,3 +173,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Sonar Scanner
+.scannerwork/
