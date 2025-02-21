@@ -176,3 +176,7 @@ cython_debug/
 
 # Sonar Scanner
 .scannerwork/
+
+# macOS system files
+.DS_Store
+

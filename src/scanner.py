@@ -25,7 +25,11 @@ class VulnerabilityScanner:
             "LoggingMonitoringDisabled": "Enable logging and monitoring for better observability.",
             "LegacyABACEnabled": "Disable legacy ABAC; enable RBAC and network policies on container clusters.",
             "NoKeyRotation": "Enable key rotation to improve key security.",
-            "CloudTrailMisconfigured": "Enable multi-region trails, log file validation, and encryption for CloudTrail."
+            "CloudTrailMisconfigured": "Enable multi-region trails, log file validation, and encryption for CloudTrail.",
+            "RunAsRoot": "Avoid running containers as root (use non-root UID).",
+            "LatestTagUsed": "Avoid using ':latest' tag; pin a specific version.",
+            "MissingResourceLimits": "Set container resource limits (CPU/Memory).",
+            "MissingReadOnlyRootFilesystem": "Enable readOnlyRootFilesystem in container securityContext."
         }
         vtype = vuln.get("type")
         vuln["remediation"] = remediation_dict.get(vtype, "Review configuration and apply security best practices.")
@@ -40,7 +44,7 @@ class VulnerabilityScanner:
         }
         return self.add_remediation(vuln)
 
-    # ========== General Checks ==========
+    #general checks
 
     def check_sensitive_keys(self, config, parent_key=""):
         """
@@ -113,28 +117,33 @@ class VulnerabilityScanner:
         return vulnerabilities
 
     def scan_general(self, config, parent_key=""):
+        """
+        Combines all general checks: sensitive keys, debug flags, insecure configs
+        """
         vulns = []
         vulns.extend(self.check_sensitive_keys(config, parent_key))
         vulns.extend(self.check_debug_flags(config, parent_key))
         vulns.extend(self.check_insecure_configurations(config, parent_key))
         return vulns
 
-    # ========== Resource-Specific Checks ==========
+    #resources checks
 
     def scan_resources(self, config):
+        """
+        Scans known "resources" array for AWS/Azure/GCP resource misconfigurations
+        """
         vulnerabilities = []
         resources = config.get("resources", [])
         if not isinstance(resources, list):
-            return vulnerabilities  # If "resources" not a list, skip
+            return vulnerabilities
 
         for idx, res in enumerate(resources):
             res_key = f"resources[{idx}]"
             rtype = str(res.get("type", "")).lower().strip()
 
-            # ---------- AWS EC2 Instance ----------
+            #aws ec2 instances
             if rtype == "ec2_instance":
                 password = res.get("password", "")
-                # => WeakPassword if <8 or "weak"
                 if password and (len(password) < 8 or "weak" in password.lower()):
                     vulnerabilities.append(self.create_vulnerability(
                         "WeakPassword",
@@ -142,7 +151,6 @@ class VulnerabilityScanner:
                         f"EC2 Instance '{res.get('name')}' is using a weak password.",
                         "High"
                     ))
-                # => EncryptionDisabled if "encryption": false
                 if res.get("encryption") is False:
                     vulnerabilities.append(self.create_vulnerability(
                         "EncryptionDisabled",
@@ -150,7 +158,6 @@ class VulnerabilityScanner:
                         f"EC2 Instance '{res.get('name')}' is not encrypted.",
                         "High"
                     ))
-                # => MFADisabled if "mfa_enabled": false
                 if res.get("mfa_enabled") is False:
                     vulnerabilities.append(self.create_vulnerability(
                         "MFADisabled",
@@ -158,7 +165,6 @@ class VulnerabilityScanner:
                         f"EC2 Instance '{res.get('name')}' does not have MFA enabled.",
                         "Medium"
                     ))
-                # => InsecureConfiguration if "allow_root_login": true
                 if res.get("allow_root_login") is True:
                     vulnerabilities.append(self.create_vulnerability(
                         "InsecureConfiguration",
@@ -166,7 +172,6 @@ class VulnerabilityScanner:
                         f"EC2 Instance '{res.get('name')}' allows root login.",
                         "High"
                     ))
-                # => OpenPortExposure if 22 or 3389 in open_ports
                 open_ports = res.get("open_ports", [])
                 if any(port in open_ports for port in [22, 3389]):
                     vulnerabilities.append(self.create_vulnerability(
@@ -176,9 +181,8 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- AWS S3 Bucket ----------
+            #aws s3 buckets
             elif rtype == "s3_bucket":
-                # => PublicAccessEnabled if public_read_access or public_write_access is True
                 if res.get("public_read_access") is True or res.get("public_write_access") is True:
                     vulnerabilities.append(self.create_vulnerability(
                         "PublicAccessEnabled",
@@ -186,7 +190,6 @@ class VulnerabilityScanner:
                         f"S3 Bucket '{res.get('name')}' has public access enabled.",
                         "High"
                     ))
-                # => EncryptionDisabled if "encryption": false
                 if res.get("encryption") is False:
                     vulnerabilities.append(self.create_vulnerability(
                         "EncryptionDisabled",
@@ -195,7 +198,7 @@ class VulnerabilityScanner:
                         "High"
                     ))
 
-            # ---------- AWS IAM Role ----------
+            #aws iam roles
             elif rtype == "iam_role":
                 permissions = res.get("permissions", [])
                 for perm in permissions:
@@ -210,7 +213,7 @@ class VulnerabilityScanner:
                             "High"
                         ))
 
-            # ---------- AWS RDS Instance ----------
+            #aws rds instances
             elif rtype == "rds_instance":
                 if res.get("storage_encrypted") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -234,7 +237,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- AWS Security Group ----------
+            #aws security groups
             elif rtype == "security_group":
                 rules = res.get("rules", [])
                 for rule in rules:
@@ -247,9 +250,8 @@ class VulnerabilityScanner:
                             "High"
                         ))
 
-            # ---------- Azure Storage Account ----------
+            #azure storage
             elif rtype == "storage_account":
-                # If "public_access" != None/"" => public
                 public_access = str(res.get("public_access", "")).lower()
                 if public_access not in ["none", ""]:
                     vulnerabilities.append(self.create_vulnerability(
@@ -273,7 +275,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- Azure Key Vault ----------
+            #azure key vault
             elif rtype == "key_vault":
                 if res.get("public_network_access") is True:
                     vulnerabilities.append(self.create_vulnerability(
@@ -297,10 +299,9 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- Azure Virtual Machine ----------
+            #azure vm
             elif rtype == "virtual_machine":
                 password = res.get("password", "")
-                # => WeakPassword
                 if password and (len(password) < 8 or "weak" in password.lower()):
                     vulnerabilities.append(self.create_vulnerability(
                         "WeakPassword",
@@ -308,7 +309,6 @@ class VulnerabilityScanner:
                         f"Virtual Machine '{res.get('name')}' is using a weak password.",
                         "High"
                     ))
-                # => EncryptionDisabled if "os_disk_encryption_enabled": false OR "encryption": false
                 encryption_flag = res.get("encryption")
                 os_disk_flag = res.get("os_disk_encryption_enabled")
                 if encryption_flag is False or os_disk_flag is False:
@@ -318,7 +318,6 @@ class VulnerabilityScanner:
                         f"Virtual Machine '{res.get('name')}' is not encrypted.",
                         "High"
                     ))
-                # => InsecureConfiguration if "boot_diagnostics_enabled" or "just_in_time_access_enabled" is false
                 if res.get("boot_diagnostics_enabled") is False:
                     vulnerabilities.append(self.create_vulnerability(
                         "InsecureConfiguration",
@@ -333,7 +332,6 @@ class VulnerabilityScanner:
                         f"Virtual Machine '{res.get('name')}' does not have JIT access enabled.",
                         "Medium"
                     ))
-                # => OpenPortExposure => 22 or 3389
                 open_ports = res.get("open_ports", [])
                 if any(port in open_ports for port in [22, 3389]):
                     vulnerabilities.append(self.create_vulnerability(
@@ -343,7 +341,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- GCP Compute Instance ----------
+            #gcp compute instance
             elif rtype == "compute_instance":
                 password = res.get("password", "")
                 if password and (len(password) < 8 or "weak" in password.lower()):
@@ -376,7 +374,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- GCP Firewall Rule ----------
+            #gcp firewall
             elif rtype == "firewall_rule":
                 rules = res.get("rules", [])
                 for rule in rules:
@@ -389,7 +387,7 @@ class VulnerabilityScanner:
                             "High"
                         ))
 
-            # ---------- GCP Container Cluster ----------
+            #gcp container cluster
             elif rtype == "container_cluster":
                 if res.get("legacy_abac_enabled") is True:
                     vulnerabilities.append(self.create_vulnerability(
@@ -406,7 +404,7 @@ class VulnerabilityScanner:
                         "High"
                     ))
 
-            # ---------- GCP Logging / Monitoring ----------
+            #gcp logging and monitoring
             elif rtype == "cloud_logging":
                 if res.get("enabled") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -424,7 +422,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- GCP IAM Policy ----------
+            #gcp iam policy
             elif rtype == "iam_policy":
                 bindings = res.get("bindings", [])
                 for binding in bindings:
@@ -438,7 +436,7 @@ class VulnerabilityScanner:
                             "High"
                         ))
 
-            # ---------- GCP Cloud SQL ----------
+            #gcp cloud sql
             elif rtype == "cloud_sql":
                 if res.get("disk_encryption") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -476,7 +474,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- GCP BigQuery Dataset ----------
+            #gcp bq
             elif rtype == "bigquery_dataset":
                 if res.get("public_access") is True:
                     vulnerabilities.append(self.create_vulnerability(
@@ -493,7 +491,7 @@ class VulnerabilityScanner:
                         "High"
                     ))
 
-            # ---------- GCP DNS Managed Zone ----------
+            #gcp dns mz
             elif rtype == "dns_managed_zone":
                 if str(res.get("visibility", "")).lower().strip() == "public":
                     vulnerabilities.append(self.create_vulnerability(
@@ -503,7 +501,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- AWS CloudTrail ----------
+            #aws cloud trail
             elif rtype == "cloudtrail":
                 if res.get("multi_region_trail") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -527,7 +525,7 @@ class VulnerabilityScanner:
                         "High"
                     ))
 
-            # ---------- AWS KMS Key ----------
+            #aws kms keys
             elif rtype == "kms_key":
                 if res.get("rotation_enabled") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -537,7 +535,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- AWS IAM User ----------
+            #aws iam users
             elif rtype == "iam_user":
                 if res.get("mfa_enabled") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -562,7 +560,7 @@ class VulnerabilityScanner:
                                 "High"
                             ))
 
-            # ---------- AWS Lambda Function ----------
+            #aws lambda function
             elif rtype == "lambda_function":
                 permissions = res.get("lambda_permissions", [])
                 for perm in permissions:
@@ -577,7 +575,7 @@ class VulnerabilityScanner:
                             "High"
                         ))
 
-            # ---------- AWS CloudFront Distribution ----------
+            #aws cloudfront dist
             elif rtype == "cloudfront_distribution":
                 if str(res.get("viewer_protocol_policy", "")).lower() != "redirect-to-https":
                     vulnerabilities.append(self.create_vulnerability(
@@ -587,7 +585,7 @@ class VulnerabilityScanner:
                         "Medium"
                     ))
 
-            # ---------- AWS Cloud Config ----------
+            #aws cloud config
             elif rtype == "cloud_config":
                 if res.get("recording_all_resources") is False:
                     vulnerabilities.append(self.create_vulnerability(
@@ -598,19 +596,103 @@ class VulnerabilityScanner:
                     ))
 
             else:
-                # If unrecognized resource type, do nothing
+                #resrouce type not recognized
                 pass
 
         return vulnerabilities
 
+    #Knative service objects
+    def check_knative_service(self, config):
+        vulnerabilities = []
+
+        metadata = config.get("metadata", {})
+        ann = metadata.get("annotations", {})
+        mfa_value = ann.get("security.knative.dev/mfaEnabled")
+        if isinstance(mfa_value, str) and mfa_value.lower() == "false":
+            vulnerabilities.append(self.create_vulnerability(
+                "MFADisabled",
+                "metadata.annotations.security.knative.dev/mfaEnabled",
+                "Knative Service has MFA disabled in annotation.",
+                "Medium"
+            ))
+
+        template = config.get("spec", {}).get("template", {})
+        container_spec = template.get("spec", {})
+        containers = container_spec.get("containers", [])
+        for idx, c in enumerate(containers):
+            c_key = f"spec.template.spec.containers[{idx}]"
+            image = c.get("image", "")
+            #image ends with ":latest"?
+            if image.endswith(":latest"):
+                vulnerabilities.append(self.create_vulnerability(
+                    "LatestTagUsed",
+                    f"{c_key}.image",
+                    "Container uses ':latest' tag => not pinned to version.",
+                    "Medium"
+                ))
+            security_ctx = c.get("securityContext", {})
+            privileged = security_ctx.get("privileged", False)
+            if privileged:
+                vulnerabilities.append(self.create_vulnerability(
+                    "PrivilegedContainer",
+                    f"{c_key}.securityContext.privileged",
+                    "Container is running in privileged mode.",
+                    "High"
+                ))
+            run_as_user = security_ctx.get("runAsUser")
+            if run_as_user == 0:
+                vulnerabilities.append(self.create_vulnerability(
+                    "RunAsRoot",
+                    f"{c_key}.securityContext.runAsUser",
+                    "Container is running as root (UID 0).",
+                    "High"
+                ))
+            #readOnlyRootFilesystem?
+            ro_fs = security_ctx.get("readOnlyRootFilesystem")
+            if ro_fs is not True:
+                vulnerabilities.append(self.create_vulnerability(
+                    "MissingReadOnlyRootFilesystem",
+                    f"{c_key}.securityContext.readOnlyRootFilesystem",
+                    "Container filesystem is not read-only.",
+                    "Medium"
+                ))
+            #SECRET_KEY in env?
+            envs = c.get("env", [])
+            for env_item in envs:
+                if env_item.get("name", "").lower() == "secret_key":
+                    secret_val = env_item.get("value", "")
+                    if len(secret_val) < 20 or not secret_val.startswith("ENC("):
+                        vulnerabilities.append(self.create_vulnerability(
+                            "SensitiveInformationExposure",
+                            f"{c_key}.env SECRET_KEY",
+                            "Knative container has plain-text SECRET_KEY environment variable.",
+                            "High"
+                        ))
+            #res limits?
+            resources_block = c.get("resources", {})
+            limits = resources_block.get("limits")
+            if not limits:
+                vulnerabilities.append(self.create_vulnerability(
+                    "MissingResourceLimits",
+                    f"{c_key}.resources.limits",
+                    "Container is missing resource limits (CPU/Memory).",
+                    "Medium"
+                ))
+
+        return vulnerabilities
+
     def scan(self, config, report_format="dict"):
-        """Combine general + resource-specific checks; optionally produce txt or json."""
         vulnerabilities = []
         vulnerabilities.extend(self.scan_general(config))
         vulnerabilities.extend(self.scan_resources(config))
 
-        # De-duplicate
-        unique_vulns = {(v["type"], v["key"]): v for v in vulnerabilities}.values()
+        if (config.get("kind") == "Service"
+            and isinstance(config.get("apiVersion"), str)
+            and config["apiVersion"].startswith("serving.knative.dev/")):
+            vulnerabilities.extend(self.check_knative_service(config))
+
+        #de-duplicate vuls
+        unique_vulns = { (v["type"], v["key"]): v for v in vulnerabilities }.values()
 
         if report_format == "dict":
             return list(unique_vulns)
