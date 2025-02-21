@@ -47,9 +47,6 @@ class VulnerabilityScanner:
     #general checks
 
     def check_sensitive_keys(self, config, parent_key=""):
-        """
-        Recursively checks for short plain-text secrets (password, secret, api_key, token).
-        """
         vulnerabilities = []
         if isinstance(config, dict):
             for key, value in config.items():
@@ -73,9 +70,6 @@ class VulnerabilityScanner:
         return vulnerabilities
 
     def check_debug_flags(self, config, parent_key=""):
-        """
-        Recursively checks for "debug": true
-        """
         vulnerabilities = []
         if isinstance(config, dict):
             for key, value in config.items():
@@ -129,9 +123,6 @@ class VulnerabilityScanner:
     #resources checks
 
     def scan_resources(self, config):
-        """
-        Scans known "resources" array for AWS/Azure/GCP resource misconfigurations
-        """
         vulnerabilities = []
         resources = config.get("resources", [])
         if not isinstance(resources, list):
