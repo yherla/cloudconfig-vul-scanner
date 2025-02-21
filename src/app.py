@@ -66,7 +66,7 @@ def download_csv():
         ])
     output = si.getvalue()
     si.close()
-    # Return as text/csv
+    
     return Response(
         output,
         mimetype="text/csv",
