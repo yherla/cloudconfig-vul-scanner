@@ -3,7 +3,7 @@ import json
 import csv
 from io import StringIO
 from flask import Flask, render_template, request, redirect, flash, Response, session
-from .scanner import VulnerabilityScanner  # Relative import
+from .scanner import VulnerabilityScanner
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates')
 app = Flask(__name__, template_folder=template_dir)
