@@ -2,11 +2,14 @@ import os
 import json
 import csv
 from io import StringIO
-from flask import Flask, render_template, request, redirect, flash, Response, session
+from flask import Flask, render_template, request, redirect, flash, Response, session, url_for
+
 from .scanner import VulnerabilityScanner
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates')
-app = Flask(__name__, template_folder=template_dir)
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'static')
+
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
@@ -74,4 +77,4 @@ def download_csv():
     )
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=True)
