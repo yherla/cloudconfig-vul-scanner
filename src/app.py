@@ -2,8 +2,9 @@ import os
 import json
 import csv
 from io import StringIO
-from flask import Flask, render_template, request, redirect, flash, Response, session, url_for
+from flask import Flask, render_template, request, redirect, flash, Response, session, jsonify
 from flask_wtf.csrf import CSRFProtect
+
 from .scanner import VulnerabilityScanner
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates')
@@ -11,9 +12,9 @@ static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'sta
 
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
-csrf = CSRFProtect(app)
-
+# Enable CSRF Protection
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
+csrf = CSRFProtect(app)
 
 scanner = VulnerabilityScanner(
     opa_policy_url=os.environ.get('OPA_POLICY_URL')
@@ -28,11 +29,13 @@ def upload():
     if request.method == 'POST':
         if 'config_file' not in request.files:
             flash('No file part')
-            return redirect(request.url)
+            return jsonify({"error": "No file part"}), 400  
+
         file = request.files['config_file']
         if file.filename == '':
             flash('No selected file')
-            return redirect(request.url)
+            return jsonify({"error": "No selected file"}), 400  
+
         try:
             config_data = json.load(file)
             vulnerabilities = scanner.scan(config_data, report_format="dict")
@@ -46,11 +49,14 @@ def upload():
                 "details": vulnerabilities
             }
             return render_template('report.html', report=report)
+
+        except json.JSONDecodeError:
+            return jsonify({"error": "Invalid JSON format."}), 400  
+
         except Exception as e:
-            flash(f'Error processing file: {e}')
-            return redirect(request.url)
-    else:
-        return render_template('index.html')
+            return jsonify({"error": f"Error processing file: {e}"}), 500  
+
+    return render_template('index.html')
 
 @app.route('/download_csv')
 def download_csv():
@@ -58,6 +64,7 @@ def download_csv():
     if not vulnerabilities:
         flash("No vulnerabilities to export.")
         return redirect('/')
+
     si = StringIO()
     writer = csv.writer(si)
     writer.writerow(["Type", "Location", "Severity", "Description", "Remediation"])
@@ -71,6 +78,7 @@ def download_csv():
         ])
     output = si.getvalue()
     si.close()
+
     return Response(
         output,
         mimetype="text/csv",
@@ -78,4 +86,4 @@ def download_csv():
     )
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=False) 
