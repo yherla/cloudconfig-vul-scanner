@@ -23,7 +23,10 @@
     </div>
     
     <div class="button-group">
-      <a href="{{ url_for('download_csv') }}" class="btn">Download CSV Report</a>
+      <form action="{{ url_for('download_csv') }}" method="get">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn">Download CSV Report</button>
+      </form>
       <a href="{{ url_for('index') }}" class="btn">Upload Another File</a>
     </div>
   </div>
