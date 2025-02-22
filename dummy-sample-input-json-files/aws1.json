@@ -1,0 +1,156 @@
+{
+    "resources": [
+      {
+        "type": "s3_bucket",
+        "name": "insecure-bucket",
+        "public_read_access": true,
+        "encryption": false,
+        "versioning": false,
+        "logging": false,
+        "aws_specific": {
+          "region": "us-east-1"
+        }
+      },
+      {
+        "type": "ec2_instance",
+        "name": "web-server",
+        "ami": "ami-12345678",
+        "instance_type": "t2.micro",
+        "key_pair": "web-key",
+        "password": "weakpassword",
+        "encryption": false,
+        "mfa_enabled": false,
+        "security_group": "sg-123abc",
+        "open_ports": [22, 80, 443],
+        "aws_specific": {
+          "availability_zone": "us-east-1a",
+          "vpc_id": "vpc-123456"
+        }
+      },
+      {
+        "type": "security_group",
+        "name": "wide-open-sg",
+        "rules": [
+          {
+            "protocol": "tcp",
+            "port": 22,
+            "source": "0.0.0.0/0"
+          },
+          {
+            "protocol": "tcp",
+            "port": 80,
+            "source": "0.0.0.0/0"
+          },
+          {
+            "protocol": "tcp",
+            "port": 443,
+            "source": "0.0.0.0/0"
+          }
+        ],
+        "aws_specific": {
+          "region": "us-west-2"
+        }
+      },
+      {
+        "type": "iam_role",
+        "name": "admin-role",
+        "permissions": [
+          {
+            "Effect": "Allow",
+            "Action": "*",
+            "Resource": "*"
+          }
+        ],
+        "aws_specific": {
+          "region": "us-east-1"
+        }
+      },
+      {
+        "type": "rds_instance",
+        "name": "insecure-db",
+        "engine": "mysql",
+        "storage_encrypted": false,
+        "public_access": true,
+        "mfa_enabled": false,
+        "security_group": "sg-789xyz",
+        "aws_specific": {
+          "region": "us-east-2",
+          "db_instance_class": "db.t2.micro"
+        }
+      },
+      {
+        "type": "s3_bucket",
+        "name": "secure-bucket",
+        "public_read_access": false,
+        "encryption": true,
+        "versioning": true,
+        "logging": true,
+        "aws_specific": {
+          "region": "us-west-1"
+        }
+      },
+      {
+        "type": "ec2_instance",
+        "name": "secure-server",
+        "ami": "ami-98765432",
+        "instance_type": "t3.medium",
+        "key_pair": "secure-key",
+        "password": "StrongPass!2024",
+        "encryption": true,
+        "mfa_enabled": true,
+        "security_group": "sg-456def",
+        "open_ports": [443],
+        "aws_specific": {
+          "availability_zone": "us-east-2b",
+          "vpc_id": "vpc-987654"
+        }
+      },
+      {
+        "type": "security_group",
+        "name": "restricted-sg",
+        "rules": [
+          {
+            "protocol": "tcp",
+            "port": 22,
+            "source": "192.168.1.0/24"
+          },
+          {
+            "protocol": "tcp",
+            "port": 443,
+            "source": "192.168.1.0/24"
+          }
+        ],
+        "aws_specific": {
+          "region": "us-west-1"
+        }
+      },
+      {
+        "type": "iam_role",
+        "name": "limited-role",
+        "permissions": [
+          {
+            "Effect": "Allow",
+            "Action": ["s3:ListBucket", "ec2:DescribeInstances"],
+            "Resource": "*"
+          }
+        ],
+        "aws_specific": {
+          "region": "us-west-2"
+        }
+      },
+      {
+        "type": "rds_instance",
+        "name": "secure-db",
+        "engine": "postgres",
+        "storage_encrypted": true,
+        "public_access": false,
+        "mfa_enabled": true,
+        "security_group": "sg-321zyx",
+        "aws_specific": {
+          "region": "us-east-1",
+          "db_instance_class": "db.t3.medium"
+        }
+      }
+    ]
+  }
+  

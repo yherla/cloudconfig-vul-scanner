@@ -21,8 +21,7 @@ class TestVulnerabilityScanner(unittest.TestCase):
         vulns = self.scanner.check_insecure_configurations(config)
         self.assertTrue(any(v["type"] == "InsecureConfiguration" for v in vulns))
 
-    # ================== AWS TESTS ==================
-
+    #aws tests
     def test_aws_ec2_vulnerabilities(self):
         config = {
             "resources": [
@@ -132,8 +131,7 @@ class TestVulnerabilityScanner(unittest.TestCase):
         self.assertIn("MFADisabled", types)
         self.assertIn("OverlyPermissiveIAMRole", types)
 
-    # ================== Azure TESTS ==================
-
+    #azure tests
     def test_azure_storage_account_vulnerabilities(self):
         config = {
             "resources": [
@@ -188,8 +186,7 @@ class TestVulnerabilityScanner(unittest.TestCase):
         self.assertIn("PublicAccessEnabled", types)
         self.assertIn("InsecureConfiguration", types)
 
-    # ================== GCP TESTS ==================
-
+    #gcp tests
     def test_gcp_compute_instance_vulnerabilities(self):
         config = {
             "resources": [
@@ -261,8 +258,7 @@ class TestVulnerabilityScanner(unittest.TestCase):
         types = [v["type"] for v in vulns]
         self.assertIn("LegacyABACEnabled", types)
 
-    # ================== Additional / Edge Cases ==================
-
+    #other cases
     def test_full_scan_with_no_vulns(self):
         config = {
             "resources": [
@@ -335,6 +331,64 @@ class TestVulnerabilityScanner(unittest.TestCase):
         config2 = {"resources": "not_a_list"}
         vulns2 = self.scanner.scan_resources(config2)
         self.assertEqual(vulns2, [])
+
+    #knative tests
+    def test_knative_service_vulnerabilities(self):
+        knative_json = {
+            "apiVersion": "serving.knative.dev/v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "nginx-service",
+                "namespace": "default",
+                "annotations": {
+                    "autoscaling.knative.dev/minScale": "1",
+                    "autoscaling.knative.dev/maxScale": "10",
+                    "security.knative.dev/mfaEnabled": "false"
+                }
+            },
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "autoscaling.knative.dev/minScale": "1",
+                            "autoscaling.knative.dev/maxScale": "10"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "image": "nginx:latest",
+                                "ports": [
+                                    {"containerPort": 80}
+                                ],
+                                "env": [
+                                    {"name": "ENVIRONMENT", "value": "production"},
+                                    {"name": "SECRET_KEY", "value": "mysecretkey"},
+                                    {"name": "PUBLIC_BUCKET_URL", "value": "http://public-bucket.example.com/data"}
+                                ],
+                                "securityContext": {
+                                    "runAsUser": 0,
+                                    "runAsGroup": 0,
+                                    "privileged": True
+                                    # missing readOnlyRootFilesystem => vulnerability
+                                }
+                                # missing resources => MissingResourceLimits
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        vulns = self.scanner.scan(knative_json)
+        types = [v["type"] for v in vulns]
+
+        self.assertIn("MFADisabled", types)
+        self.assertIn("LatestTagUsed", types)
+        self.assertIn("SensitiveInformationExposure", types)
+        self.assertIn("PrivilegedContainer", types)
+        self.assertIn("RunAsRoot", types)
+        self.assertIn("MissingReadOnlyRootFilesystem", types)
+        self.assertIn("MissingResourceLimits", types)
 
 if __name__ == '__main__':
     unittest.main()

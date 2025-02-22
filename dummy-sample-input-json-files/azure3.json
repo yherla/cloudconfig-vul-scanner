@@ -1,0 +1,167 @@
+{
+  "resources": [
+    {
+      "type": "storage_account",
+      "name": "publicblobstorage",
+      "public_access": "Blob",
+      "encryption_enabled": false,
+      "soft_delete_enabled": false,
+      "advanced_threat_protection_enabled": false,
+      "azure_specific": {
+        "region": "eastus"
+      }
+    },
+    {
+      "type": "virtual_machine",
+      "name": "legacy-windows-vm",
+      "size": "Standard_B2s",
+      "os": "Windows",
+      "admin_username": "oldadmin",
+      "password": "P@ssw0rd!",
+      "os_disk_encryption_enabled": false,
+      "boot_diagnostics_enabled": false,
+      "just_in_time_access_enabled": false,
+      "mfa_enabled": false,
+      "network_security_group": "open-nsg",
+      "open_ports": [3389, 8080],
+      "azure_specific": {
+        "resource_group": "rg-legacy",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "network_security_group",
+      "name": "open-nsg",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": 3389,
+          "source": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "port": 8080,
+          "source": "0.0.0.0/0"
+        }
+      ],
+      "allow_outbound_to_any": true,
+      "azure_specific": {
+        "region": "eastus"
+      }
+    },
+    {
+      "type": "key_vault",
+      "name": "public-vault",
+      "public_network_access": true,
+      "firewall_enabled": false,
+      "soft_delete_enabled": false,
+      "purge_protection_enabled": false,
+      "secrets": [
+        {
+          "name": "db-password",
+          "value": "SuperSecret123!"
+        }
+      ],
+      "azure_specific": {
+        "resource_group": "rg-legacy",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "log_analytics_workspace",
+      "name": "disabled-logs",
+      "retention_in_days": 0,
+      "public_network_access_for_ingestion": true,
+      "public_network_access_for_query": true,
+      "azure_specific": {
+        "resource_group": "rg-monitor",
+        "location": "westus"
+      }
+    },
+    {
+      "type": "sql_server",
+      "name": "unprotected-sqlserver",
+      "administrator_login": "admin",
+      "administrator_password": "Admin123!",
+      "azure_ad_admin_configured": false,
+      "audit_enabled": false,
+      "threat_detection_enabled": false,
+      "transparent_data_encryption": false,
+      "azure_specific": {
+        "resource_group": "rg-database",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "sql_database",
+      "name": "unprotected-sqldb",
+      "server": "unprotected-sqlserver",
+      "encryption_enabled": false,
+      "public_network_access": true,
+      "firewall_rules": [
+        {
+          "name": "allow-all",
+          "start_ip_address": "0.0.0.0",
+          "end_ip_address": "255.255.255.255"
+        }
+      ],
+      "azure_specific": {
+        "resource_group": "rg-database",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "app_service",
+      "name": "insecure-webapp",
+      "https_only": false,
+      "ftps_state": "AllAllowed",
+      "client_cert_enabled": false,
+      "remote_debug_enabled": true,
+      "azure_specific": {
+        "resource_group": "rg-webapps",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "aks_cluster",
+      "name": "legacy-aks",
+      "rbac_enabled": false,
+      "network_policy_enabled": false,
+      "azure_specific": {
+        "resource_group": "rg-containers",
+        "location": "westus"
+      }
+    },
+    {
+      "type": "role_assignment",
+      "name": "owner-to-everyone",
+      "role": "Owner",
+      "assigned_to": "everyone",
+      "condition": null,
+      "azure_specific": {
+        "subscription_id": "11111111-2222-3333-4444-555555555555"
+      }
+    },
+    {
+      "type": "policy_assignment",
+      "name": "no-security-baseline",
+      "policy_definition_name": null,
+      "parameters": {},
+      "assigned_to": "rg-legacy",
+      "azure_specific": {
+        "subscription_id": "99999999-8888-7777-6666-555555555555"
+      }
+    },
+    {
+      "type": "storage_account",
+      "name": "securestorage",
+      "public_access": "None",
+      "encryption_enabled": true,
+      "soft_delete_enabled": true,
+      "advanced_threat_protection_enabled": true,
+      "azure_specific": {
+        "region": "westus"
+      }
+    }
+  ]
+}

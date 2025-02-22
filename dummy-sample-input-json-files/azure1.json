@@ -1,0 +1,66 @@
+{
+    "resources": [
+      {
+        "type": "virtual_machine",
+        "name": "vm1",
+        "open_ports": [22, 80, 443],
+        "password": "weakpassword",
+        "encryption": false,
+        "mfa_enabled": false,
+        "azure_specific": {
+          "resource_group": "rg1",
+          "location": "eastus",
+          "vm_size": "Standard_DS1_v2"
+        }
+      },
+      {
+        "type": "storage_account",
+        "name": "storage1",
+        "encryption": false,
+        "azure_specific": {
+          "resource_group": "rg1",
+          "location": "eastus",
+          "account_tier": "Standard",
+          "replication": "LRS"
+        }
+      },
+      {
+        "type": "database",
+        "name": "db1",
+        "open_ports": [],
+        "password": "supersecurepassword",
+        "encryption": true,
+        "mfa_enabled": true,
+        "azure_specific": {
+          "resource_group": "rg2",
+          "location": "westus",
+          "db_service": "Azure SQL Database"
+        }
+      },
+      {
+        "type": "virtual_machine",
+        "name": "vm2",
+        "open_ports": [22, 8080],
+        "password": "anotherweakpassword",
+        "encryption": false,
+        "mfa_enabled": false,
+        "azure_specific": {
+          "resource_group": "rg2",
+          "location": "westus",
+          "vm_size": "Standard_B2s"
+        }
+      },
+      {
+        "type": "storage_account",
+        "name": "storage2",
+        "encryption": true,
+        "azure_specific": {
+          "resource_group": "rg3",
+          "location": "centralus",
+          "account_tier": "Premium",
+          "replication": "GRS"
+        }
+      }
+    ]
+  }
+  

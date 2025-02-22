@@ -1,0 +1,179 @@
+{
+  "resources": [
+    {
+      "type": "s3_bucket",
+      "name": "unrestricted-bucket",
+      "block_public_access": false,
+      "public_read_access": true,
+      "public_write_access": true,
+      "versioning": false,
+      "encryption": false,
+      "logging": false,
+      "aws_specific": {
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "cloudtrail",
+      "name": "incomplete-trail",
+      "multi_region_trail": false,
+      "log_file_validation_enabled": false,
+      "encrypted": false,
+      "bucket_name": "unrestricted-bucket",
+      "aws_specific": {
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "ec2_instance",
+      "name": "legacy-server",
+      "ami": "ami-1234abcd",
+      "instance_type": "t2.medium",
+      "key_pair": "legacy-key",
+      "imds_v2_required": false,
+      "encryption": false,
+      "security_group": "sg-unrestricted",
+      "allow_root_login": true,
+      "password": "OldP@ssw0rd",
+      "mfa_enabled": false,
+      "open_ports": [22, 80, 443, 8080],
+      "aws_specific": {
+        "availability_zone": "us-east-1c",
+        "vpc_id": "vpc-00112233"
+      }
+    },
+    {
+      "type": "security_group",
+      "name": "sg-unrestricted",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": 0,
+          "source": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "port": 65535,
+          "source": "0.0.0.0/0"
+        }
+      ],
+      "aws_specific": {
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "cloud_config",
+      "name": "partial-config",
+      "recording_all_resources": false,
+      "delivery_channel_configured": false,
+      "aws_specific": {
+        "region": "us-west-2"
+      }
+    },
+    {
+      "type": "kms_key",
+      "name": "legacy-kms",
+      "rotation_enabled": false,
+      "aws_specific": {
+        "region": "us-east-2"
+      }
+    },
+    {
+      "type": "iam_policy",
+      "name": "dangerous-policy",
+      "document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "*",
+            "Resource": "*"
+          }
+        ]
+      },
+      "aws_specific": {
+        "region": "us-east-2"
+      }
+    },
+    {
+      "type": "iam_user",
+      "name": "no-mfa-user",
+      "mfa_enabled": false,
+      "inline_policies": [
+        {
+          "PolicyName": "admin-access",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": "*",
+                "Resource": "*"
+              }
+            ]
+          }
+        }
+      ],
+      "aws_specific": {
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "rds_instance",
+      "name": "public-rds",
+      "engine": "mysql",
+      "storage_encrypted": false,
+      "public_access": true,
+      "username": "admin",
+      "password": "admin123",
+      "backup_retention_period": 0,
+      "mfa_enabled": false,
+      "aws_specific": {
+        "region": "us-east-1",
+        "db_instance_class": "db.m5.large"
+      }
+    },
+    {
+      "type": "lambda_function",
+      "name": "credential-leaking-lambda",
+      "runtime": "python3.8",
+      "timeout": 900,
+      "memory_size": 1024,
+      "environment_variables": {
+        "DB_PASSWORD": "hardcoded-DB-pass"
+      },
+      "lambda_permissions": [
+        {
+          "Effect": "Allow",
+          "Action": "*",
+          "Resource": "*"
+        }
+      ],
+      "aws_specific": {
+        "region": "us-west-1"
+      }
+    },
+    {
+      "type": "cloudfront_distribution",
+      "name": "insecure-cf",
+      "viewer_protocol_policy": "allow-all",
+      "logging_enabled": false,
+      "aws_specific": {
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "s3_bucket",
+      "name": "secure-logs-bucket",
+      "block_public_access": true,
+      "public_read_access": false,
+      "public_write_access": false,
+      "versioning": true,
+      "encryption": true,
+      "logging": true,
+      "aws_specific": {
+        "region": "us-west-2"
+      }
+    }
+  ]
+}
