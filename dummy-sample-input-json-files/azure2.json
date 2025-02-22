@@ -1,0 +1,143 @@
+{
+  "resources": [
+    {
+      "type": "storage_account",
+      "name": "insecurestorage",
+      "public_access": true,
+      "encryption": false,
+      "soft_delete_enabled": false,
+      "logging": false,
+      "azure_specific": {
+        "region": "eastus"
+      }
+    },
+    {
+      "type": "virtual_machine",
+      "name": "vm1",
+      "size": "Standard_B2s",
+      "os": "Windows",
+      "admin_username": "admin",
+      "password": "P@ss123",
+      "encryption": false,
+      "mfa_enabled": false,
+      "network_security_group": "nsg-123abc",
+      "open_ports": [3389, 22, 80],
+      "azure_specific": {
+        "resource_group": "rg1",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "network_security_group",
+      "name": "open-nsg",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": 3389,
+          "source": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "source": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "port": 80,
+          "source": "0.0.0.0/0"
+        }
+      ],
+      "azure_specific": {
+        "region": "westus"
+      }
+    },
+    {
+      "type": "role_assignment",
+      "name": "overly-permissive-role",
+      "role": "Owner",
+      "assigned_to": "everyone",
+      "azure_specific": {
+        "subscription_id": "12345678-abcd-efgh-ijkl-9876543210"
+      }
+    },
+    {
+      "type": "sql_database",
+      "name": "insecure-sqldb",
+      "server": "insecure-sqlserver",
+      "encryption_enabled": false,
+      "public_access": true,
+      "mfa_enabled": false,
+      "azure_specific": {
+        "resource_group": "rg1",
+        "location": "eastus"
+      }
+    },
+    {
+      "type": "storage_account",
+      "name": "securestorage",
+      "public_access": false,
+      "encryption": true,
+      "soft_delete_enabled": true,
+      "logging": true,
+      "azure_specific": {
+        "region": "westus"
+      }
+    },
+    {
+      "type": "virtual_machine",
+      "name": "vm2",
+      "size": "Standard_D4s_v3",
+      "os": "Linux",
+      "admin_username": "secureadmin",
+      "password": "Str0ngP@ssw0rd!",
+      "encryption": true,
+      "mfa_enabled": true,
+      "network_security_group": "nsg-456def",
+      "open_ports": [443],
+      "azure_specific": {
+        "resource_group": "rg2",
+        "location": "westus"
+      }
+    },
+    {
+      "type": "network_security_group",
+      "name": "restricted-nsg",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "source": "192.168.1.0/24"
+        },
+        {
+          "protocol": "tcp",
+          "port": 443,
+          "source": "192.168.1.0/24"
+        }
+      ],
+      "azure_specific": {
+        "region": "centralus"
+      }
+    },
+    {
+      "type": "role_assignment",
+      "name": "limited-role",
+      "role": "Reader",
+      "assigned_to": "user@secure.com",
+      "azure_specific": {
+        "subscription_id": "98765432-wxyz-abcd-efgh-1234567890"
+      }
+    },
+    {
+      "type": "sql_database",
+      "name": "secure-sqldb",
+      "server": "secure-sqlserver",
+      "encryption_enabled": true,
+      "public_access": false,
+      "mfa_enabled": true,
+      "azure_specific": {
+        "resource_group": "rg3",
+        "location": "centralus"
+      }
+    }
+  ]
+}

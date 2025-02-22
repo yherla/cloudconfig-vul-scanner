@@ -1,0 +1,148 @@
+{
+    "resources": [
+      {
+        "type": "gcs_bucket",
+        "name": "insecure-bucket",
+        "public_access": true,
+        "encryption": false,
+        "versioning": false,
+        "logging": false,
+        "gcp_specific": {
+          "region": "us-central1"
+        }
+      },
+      {
+        "type": "compute_instance",
+        "name": "web-server",
+        "machine_type": "n1-standard-1",
+        "zone": "us-central1-a",
+        "disk_encryption": false,
+        "password": "1234",
+        "mfa_enabled": false,
+        "firewall": "fw-123abc",
+        "open_ports": [22, 80, 443],
+        "gcp_specific": {
+          "vpc": "default"
+        }
+      },
+      {
+        "type": "firewall_rule",
+        "name": "wide-open-fw",
+        "rules": [
+          {
+            "protocol": "tcp",
+            "port": 22,
+            "source": "0.0.0.0/0"
+          },
+          {
+            "protocol": "tcp",
+            "port": 80,
+            "source": "0.0.0.0/0"
+          },
+          {
+            "protocol": "tcp",
+            "port": 443,
+            "source": "0.0.0.0/0"
+          }
+        ],
+        "gcp_specific": {
+          "network": "default"
+        }
+      },
+      {
+        "type": "iam_policy",
+        "name": "overly-permissive-role",
+        "bindings": [
+          {
+            "role": "roles/editor",
+            "members": ["allUsers"]
+          }
+        ],
+        "gcp_specific": {
+          "project": "test-project"
+        }
+      },
+      {
+        "type": "cloud_sql",
+        "name": "insecure-db",
+        "engine": "mysql",
+        "disk_encryption": false,
+        "public_access": true,
+        "mfa_enabled": false,
+        "gcp_specific": {
+          "region": "us-east1",
+          "tier": "db-f1-micro"
+        }
+      },
+      {
+        "type": "gcs_bucket",
+        "name": "secure-bucket",
+        "public_access": false,
+        "encryption": true,
+        "versioning": true,
+        "logging": true,
+        "gcp_specific": {
+          "region": "europe-west1"
+        }
+      },
+      {
+        "type": "compute_instance",
+        "name": "secure-server",
+        "machine_type": "n1-standard-2",
+        "zone": "europe-west1-b",
+        "disk_encryption": true,
+        "password": "StrongPass!2024",
+        "mfa_enabled": true,
+        "firewall": "fw-456def",
+        "open_ports": [443],
+        "gcp_specific": {
+          "vpc": "secure-vpc"
+        }
+      },
+      {
+        "type": "firewall_rule",
+        "name": "restricted-fw",
+        "rules": [
+          {
+            "protocol": "tcp",
+            "port": 22,
+            "source": "192.168.1.0/24"
+          },
+          {
+            "protocol": "tcp",
+            "port": 443,
+            "source": "192.168.1.0/24"
+          }
+        ],
+        "gcp_specific": {
+          "network": "secure-network"
+        }
+      },
+      {
+        "type": "iam_policy",
+        "name": "limited-role",
+        "bindings": [
+          {
+            "role": "roles/viewer",
+            "members": ["user:secure@example.com"]
+          }
+        ],
+        "gcp_specific": {
+          "project": "secure-project"
+        }
+      },
+      {
+        "type": "cloud_sql",
+        "name": "secure-db",
+        "engine": "postgres",
+        "disk_encryption": true,
+        "public_access": false,
+        "mfa_enabled": true,
+        "gcp_specific": {
+          "region": "us-west1",
+          "tier": "db-custom-1-3840"
+        }
+      }
+    ]
+  }
+  

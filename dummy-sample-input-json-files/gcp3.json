@@ -1,0 +1,156 @@
+{
+  "resources": [
+    {
+      "type": "gcs_bucket",
+      "name": "open-bucket",
+      "public_access": true,
+      "uniform_bucket_level_access": false,
+      "versioning": false,
+      "encryption": false,
+      "logging": false,
+      "gcp_specific": {
+        "region": "us-central1"
+      }
+    },
+    {
+      "type": "compute_instance",
+      "name": "unsecured-vm",
+      "machine_type": "n1-standard-1",
+      "zone": "us-central1-a",
+      "os_login_enabled": false,
+      "shielded_vm_secure_boot": false,
+      "shielded_vm_vtpm": false,
+      "shielded_vm_integrity_monitoring": false,
+      "allow_serial_port_debug": true,
+      "disk_encryption": false,
+      "password": "WeakPass123!",
+      "mfa_enabled": false,
+      "firewall": "wide-open-fw",
+      "open_ports": [22, 80, 8080],
+      "gcp_specific": {
+        "vpc": "default"
+      }
+    },
+    {
+      "type": "firewall_rule",
+      "name": "wide-open-fw",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "source": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "port": 80,
+          "source": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "port": 8080,
+          "source": "0.0.0.0/0"
+        }
+      ],
+      "gcp_specific": {
+        "network": "default"
+      }
+    },
+    {
+      "type": "cloud_logging",
+      "name": "disabled-logging",
+      "enabled": false,
+      "gcp_specific": {
+        "project_id": "vuln-project"
+      }
+    },
+    {
+      "type": "cloud_monitoring",
+      "name": "disabled-monitoring",
+      "enabled": false,
+      "gcp_specific": {
+        "project_id": "vuln-project"
+      }
+    },
+    {
+      "type": "container_cluster",
+      "name": "legacy-gke",
+      "zone": "us-central1-b",
+      "legacy_abac_enabled": true,
+      "network_policy_enabled": false,
+      "basic_auth_enabled": true,
+      "master_authorized_networks": [],
+      "workload_identity_enabled": false,
+      "gcp_specific": {
+        "project_id": "vuln-project"
+      }
+    },
+    {
+      "type": "service_account",
+      "name": "unrestricted-sa",
+      "display_name": "Unrestricted Service Account",
+      "key_rotation_enabled": false,
+      "roles": ["roles/owner"],
+      "gcp_specific": {
+        "project_id": "vuln-project"
+      }
+    },
+    {
+      "type": "cloud_sql",
+      "name": "public-sql",
+      "engine": "mysql",
+      "disk_encryption": false,
+      "public_access": true,
+      "require_ssl": false,
+      "root_password": "rootroot",
+      "mfa_enabled": false,
+      "gcp_specific": {
+        "region": "us-west1",
+        "tier": "db-n1-standard-2"
+      }
+    },
+    {
+      "type": "bigquery_dataset",
+      "name": "public-bq-dataset",
+      "public_access": true,
+      "encryption": "NONE",
+      "gcp_specific": {
+        "project_id": "vuln-project",
+        "location": "us"
+      }
+    },
+    {
+      "type": "dns_managed_zone",
+      "name": "public-sensitive-zone",
+      "dns_name": "internal.example.com.",
+      "visibility": "public",
+      "gcp_specific": {
+        "project_id": "vuln-project"
+      }
+    },
+    {
+      "type": "iam_policy",
+      "name": "owner-to-allUsers",
+      "bindings": [
+        {
+          "role": "roles/owner",
+          "members": ["allUsers"]
+        }
+      ],
+      "gcp_specific": {
+        "project_id": "vuln-project"
+      }
+    },
+    {
+      "type": "gcs_bucket",
+      "name": "secure-bucket",
+      "public_access": false,
+      "uniform_bucket_level_access": true,
+      "versioning": true,
+      "encryption": true,
+      "logging": true,
+      "gcp_specific": {
+        "region": "europe-west1"
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+    "apiVersion": "serving.knative.dev/v1",
+    "kind": "Service",
+    "metadata": {
+      "name": "nginx-service",
+      "namespace": "default",
+      "annotations": {
+        "autoscaling.knative.dev/minScale": "1",
+        "autoscaling.knative.dev/maxScale": "10",
+        "security.knative.dev/mfaEnabled": "false"
+      }
+    },
+    "spec": {
+      "template": {
+        "metadata": {
+          "annotations": {
+            "autoscaling.knative.dev/minScale": "1",
+            "autoscaling.knative.dev/maxScale": "10"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "nginx:latest",
+              "ports": [
+                {
+                  "containerPort": 80
+                }
+              ],
+              "env": [
+                {
+                  "name": "ENVIRONMENT",
+                  "value": "production"
+                },
+                {
+                  "name": "SECRET_KEY",
+                  "value": "mysecretkey"
+                },
+                {
+                  "name": "PUBLIC_BUCKET_URL",
+                  "value": "http://public-bucket.example.com/data"
+                }
+              ],
+              "securityContext": {
+                "runAsUser": 0,
+                "runAsGroup": 0,
+                "privileged": true
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+  

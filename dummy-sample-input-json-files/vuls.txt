@@ -1,0 +1,83 @@
+Aws1
+
+
+Resource Type	Name	Vulnerability
+S3 Bucket	insecure-bucket	Public access enabled, no encryption
+EC2 Instance	web-server	Weak password, SSH open to all (0.0.0.0/0), no encryption, no MFA
+Security Group	wide-open-sg	Allows unrestricted access to SSH (22), HTTP (80), and HTTPS (443)
+IAM Role	admin-role	Grants full access ("Action": "*", "Resource": "*"), overly permissive
+RDS Instance	insecure-db	No encryption, public access enabled, no MFA
+
+
+gcp2:
+
+
+Resource Type	Name	Vulnerability
+GCS Bucket	insecure-bucket	Public access enabled, no encryption
+Compute Instance	web-server	Weak password, SSH open to all (0.0.0.0/0), no encryption, no MFA
+Firewall Rule	wide-open-fw	Allows unrestricted access to SSH (22), HTTP (80), and HTTPS (443)
+IAM Role	overly-permissive-role	Grants roles/editor access to allUsers (overly permissive)
+Cloud SQL Database	insecure-db	No encryption, public access enabled, no MFA
+
+
+Azure2:
+
+Resource Type	Name	Vulnerability
+Storage Account	insecurestorage	Public access enabled, no encryption
+Virtual Machine	vm1	Weak password, RDP (3389) and SSH (22) open to all (0.0.0.0/0), no encryption, no MFA
+Network Security Group	open-nsg	Allows unrestricted access to RDP (3389), SSH (22), and HTTP (80)
+Role Assignment	overly-permissive-role	Grants Owner role to everyone (overly permissive)
+SQL Database	insecure-sqldb	No encryption, public access enabled, no MFA
+
+Aws2:
+
+Resource Type	Name	Vulnerability
+S3 Bucket	open-write-bucket	Public write access enabled, no encryption
+EC2 Instance	compromised-server	Root login enabled, weak password, RDP (3389) open to all (0.0.0.0/0), no encryption, no MFA
+Security Group	unrestricted-outbound-sg	Allows unrestricted outbound access to all destinations (0.0.0.0/0)
+IAM Role	high-privilege-role	Grants full access ("Action": "*", "Resource": "*"), no MFA required
+RDS Instance	default-cred-db	Uses default credentials (admin/admin123), no encryption, public access enabled, no MFA
+Lambda Function	overly-permissive-lambda	Grants full access to all AWS resources ("Action": "*", "Resource": "*"), posing a security risk
+
+AWS3:
+
+S3 bucket with public read/write and no encryption
+CloudTrail not multi-region, no log file validation, unencrypted logs
+EC2 instance with IMDSv2 disabled, root login enabled, no MFA
+Security group allowing all ports (0-65535) from 0.0.0.0/0
+AWS Config not fully enabled (not recording all resources)
+KMS Key without key rotation
+Overly permissive IAM policy
+IAM user with inline admin policy and no MFA
+RDS instance publicly accessible, unencrypted, default credentials
+Lambda function storing credentials in environment variables
+CloudFront distribution with viewer_protocol_policy = "allow-all" (no forced HTTPS)
+
+GCP3:
+
+GCS bucket with uniform bucket-level access disabled, public access, no encryption
+Compute Engine instance with OS Login disabled, shielded VM features off, serial port debugging on
+Firewall wide open to the internet (22, 80, 8080)
+Cloud Logging and Monitoring disabled
+GKE cluster with Legacy ABAC, basic auth, no network policy
+Service account granted roles/owner, no key rotation
+Cloud SQL instance publicly accessible, unencrypted, SSL disabled
+BigQuery dataset publicly accessible, no encryption
+DNS managed zone publicly visible with potentially sensitive subdomain
+IAM policy granting roles/owner to allUsers
+
+
+azure3:
+
+Storage Account with public blob access, no encryption, no advanced threat protection
+VM with OS disk unencrypted, boot diagnostics off, JIT access disabled, password-based auth
+NSG allowing RDP and HTTP (8080) from 0.0.0.0/0, unrestricted outbound
+Key Vault with public network access, no firewall, soft delete/purge protection disabled
+Log Analytics workspace with retention = 0, fully open ingestion/query
+SQL Server with no Azure AD admin, no auditing/threat detection, TDE disabled
+SQL Database publicly accessible, encryption disabled, firewall wide open
+App Service HTTP-only, no client cert, remote debugging enabled
+AKS with RBAC disabled, no network policy
+Role Assignment giving Owner to everyone
+Policy Assignment with no security baseline set
+

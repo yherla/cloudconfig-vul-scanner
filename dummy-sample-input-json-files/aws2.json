@@ -1,0 +1,156 @@
+{
+  "resources": [
+    {
+      "type": "s3_bucket",
+      "name": "open-write-bucket",
+      "public_write_access": true,
+      "encryption": false,
+      "versioning": false,
+      "logging": false,
+      "aws_specific": {
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "ec2_instance",
+      "name": "compromised-server",
+      "ami": "ami-87654321",
+      "instance_type": "t2.small",
+      "key_pair": "insecure-key",
+      "allow_root_login": true,
+      "password": "P@ssword",
+      "encryption": false,
+      "mfa_enabled": false,
+      "security_group": "sg-999xyz",
+      "open_ports": [22, 3389],
+      "aws_specific": {
+        "availability_zone": "us-west-2a",
+        "vpc_id": "vpc-654321"
+      }
+    },
+    {
+      "type": "security_group",
+      "name": "unrestricted-outbound-sg",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": -1,
+          "destination": "0.0.0.0/0"
+        }
+      ],
+      "aws_specific": {
+        "region": "us-west-1"
+      }
+    },
+    {
+      "type": "iam_role",
+      "name": "high-privilege-role",
+      "permissions": [
+        {
+          "Effect": "Allow",
+          "Action": "*",
+          "Resource": "*"
+        }
+      ],
+      "mfa_enabled": false,
+      "aws_specific": {
+        "region": "us-east-2"
+      }
+    },
+    {
+      "type": "rds_instance",
+      "name": "default-cred-db",
+      "engine": "mysql",
+      "username": "admin",
+      "password": "admin123",
+      "storage_encrypted": false,
+      "public_access": true,
+      "mfa_enabled": false,
+      "aws_specific": {
+        "region": "us-east-1",
+        "db_instance_class": "db.t3.micro"
+      }
+    },
+    {
+      "type": "lambda_function",
+      "name": "overly-permissive-lambda",
+      "runtime": "python3.9",
+      "timeout": 300,
+      "memory_size": 512,
+      "lambda_permissions": [
+        {
+          "Effect": "Allow",
+          "Action": "*",
+          "Resource": "*"
+        }
+      ],
+      "aws_specific": {
+        "region": "us-east-2"
+      }
+    },
+    {
+      "type": "s3_bucket",
+      "name": "secure-storage",
+      "public_read_access": false,
+      "public_write_access": false,
+      "encryption": true,
+      "versioning": true,
+      "logging": true,
+      "aws_specific": {
+        "region": "us-west-2"
+      }
+    },
+    {
+      "type": "ec2_instance",
+      "name": "secure-server",
+      "ami": "ami-13579246",
+      "instance_type": "t3.large",
+      "key_pair": "secure-key",
+      "allow_root_login": false,
+      "password": "Str0ngP@ssw0rd!",
+      "encryption": true,
+      "mfa_enabled": true,
+      "security_group": "sg-555xyz",
+      "open_ports": [443],
+      "aws_specific": {
+        "availability_zone": "us-east-1c",
+        "vpc_id": "vpc-123abc"
+      }
+    },
+    {
+      "type": "security_group",
+      "name": "restricted-sg",
+      "rules": [
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "source": "10.0.0.0/24"
+        },
+        {
+          "protocol": "tcp",
+          "port": 443,
+          "source": "10.0.0.0/24"
+        }
+      ],
+      "aws_specific": {
+        "region": "us-west-1"
+      }
+    },
+    {
+      "type": "iam_role",
+      "name": "limited-access-role",
+      "permissions": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:ListBucket"],
+          "Resource": "*"
+        }
+      ],
+      "mfa_enabled": true,
+      "aws_specific": {
+        "region": "us-west-2"
+      }
+    }
+  ]
+}
+
