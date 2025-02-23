@@ -5,6 +5,9 @@ from io import StringIO
 from flask import Flask, render_template, request, redirect, flash, Response, session, jsonify
 from flask_wtf.csrf import CSRFProtect
 
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 from .scanner import VulnerabilityScanner
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates')
@@ -12,12 +15,19 @@ static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'sta
 
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
-# Enable CSRF Protection
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 csrf = CSRFProtect(app)
 
 scanner = VulnerabilityScanner(
     opa_policy_url=os.environ.get('OPA_POLICY_URL')
+)
+
+#workaround rate limit Free tier GC, no load balancer
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["20 per minute"],
+    storage_uri="memory://"
 )
 
 @app.route('/')
@@ -29,12 +39,12 @@ def upload():
     if request.method == 'POST':
         if 'config_file' not in request.files:
             flash('No file part')
-            return jsonify({"error": "No file part"}), 400  
+            return jsonify({"error": "No file part"}), 400
 
         file = request.files['config_file']
         if file.filename == '':
             flash('No selected file')
-            return jsonify({"error": "No selected file"}), 400  
+            return jsonify({"error": "No selected file"}), 400
 
         try:
             config_data = json.load(file)
@@ -51,10 +61,10 @@ def upload():
             return render_template('report.html', report=report)
 
         except json.JSONDecodeError:
-            return jsonify({"error": "Invalid JSON format."}), 400  
+            return jsonify({"error": "Invalid JSON format."}), 400
 
         except Exception as e:
-            return jsonify({"error": f"Error processing file: {e}"}), 500  
+            return jsonify({"error": f"Error processing file: {e}"}), 500
 
     return render_template('index.html')
 
@@ -86,4 +96,4 @@ def download_csv():
     )
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False) 
+    app.run(host='0.0.0.0', port=8080, debug=False)
