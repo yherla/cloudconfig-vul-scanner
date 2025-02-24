@@ -138,7 +138,7 @@ Below are a few screenshots demonstrating the application in action:
 
 ## Setup and Installation for Deploying to Google Cloud Run
 
-    Having/Creating a Google Cloud account is required. To use the following GCP services, it is necessary to have at least a Free Tier with trial.
+    Having a Google Cloud account is required. To use the following GCP services, it is necessary to have at least a Free Tier with trial.
 
 0. **(Optional) Enable Vulnerability Scanning in Artifact Registry**:
    By enabling the Container Scanning API, Artifact Analysis automatically scans each newly pushed image to Artifact Registry in that project.
@@ -247,9 +247,9 @@ Select any of the vulnerabilities listed for further details and suggestions.
 
 - **CSRF Protection**: Uses **Flask-WTF** to include a CSRF token in every form submission, preventing cross-site request forgery.
 
-- **Rate Limiting**: As a workaround to the incapacity of using Load Balancers and Cloud Armor policies to manage inbound traffic to our service, **Flask-Limiter** is configured at an application-level to allow a maximum of **20 requests per minute**. 
+- **Rate Limiting**: As a workaround to the incapacity of using Load Balancers and Cloud Armor policies to manage inbound traffic to our service, **Flask-Limiter** is configured at application-level to allow a maximum of **20 requests per minute**. 
 
-While this does not entirely prevent brute-force attacks or DoS attempts from a single source, it can reduce their impact by limiting processing overhead and preventing excessive load on the application. Additionally, the enforced rate limit may discourage automated attacks, as repeated failures or delayed responses could make them appear ineffective, prompting attackers to abandon their attempts.
+While this does not entirely prevent brute-force attacks or DoS attempts from a single source when unauthenticated invocations are allowed, it can reduce their impact by limiting processing overhead and preventing excessive load on the application. Additionally, the enforced rate limit may discourage automated attacks, as repeated failures or delayed responses could make them appear ineffective, prompting attackers to abandon their attempts.
 
 ![alt text](assets/api_rate_testing.png)
 
