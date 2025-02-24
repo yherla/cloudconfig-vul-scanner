@@ -1,8 +1,6 @@
 import json
 
 class VulnerabilityScanner:
-    def __init__(self, opa_policy_url=None):
-        self.opa_policy_url = opa_policy_url
 
     def add_remediation(self, vuln):
         remediation_dict = {

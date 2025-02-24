@@ -18,11 +18,9 @@ app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 csrf = CSRFProtect(app)
 
-scanner = VulnerabilityScanner(
-    opa_policy_url=os.environ.get('OPA_POLICY_URL')
-)
+scanner = VulnerabilityScanner()
 
-#workaround rate limit Free tier GC, no load balancer
+#workaround rate limit
 limiter = Limiter(
     get_remote_address,
     app=app,

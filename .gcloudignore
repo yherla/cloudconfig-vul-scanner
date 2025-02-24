@@ -28,5 +28,7 @@ sonar-project.properties
 
 dummy-sample-input-json-files/
 
+assets/
+
 README.md
 LICENSE
