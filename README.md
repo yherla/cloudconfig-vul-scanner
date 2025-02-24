@@ -138,7 +138,7 @@ Below are a few screenshots demonstrating the application in action:
 
 ## Setup and Installation for Deploying to Google Cloud Run
 
-    Having a Google Cloud account is required. To use the following GCP services, it is necessary to have at least a Free Tier with trial.
+Having a Google Cloud account is required. To use the following GCP services, it is necessary to have at least a Free Tier with trial.
 
 0. **(Optional) Enable Vulnerability Scanning in Artifact Registry**:
    By enabling the Container Scanning API, Artifact Analysis automatically scans each newly pushed image to Artifact Registry in that project.
