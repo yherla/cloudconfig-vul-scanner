@@ -182,6 +182,9 @@ Having a Google Cloud account is required. To use the following GCP services, it
 
    ![alt text](assets/gcloud_broswer.png)
 
+   For testing the application, you can use any of the **sample JSON files** available in the `dummy-sample-input-json-files` folder.
+
+
    - CAUTION: To delete the service, use `gcloud run services delete cloudconfig-vul-scanner --region=europe-west1` (assuming that the service name is cloudconfig-vul-scanner and the region is europe-west1) 
 
 ---
