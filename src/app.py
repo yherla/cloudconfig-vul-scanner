@@ -20,7 +20,7 @@ csrf = CSRFProtect(app)
 
 scanner = VulnerabilityScanner()
 
-#workaround rate limit Free tier GC, no load balancer
+#workaround rate limit
 limiter = Limiter(
     get_remote_address,
     app=app,
