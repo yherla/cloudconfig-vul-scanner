@@ -122,17 +122,19 @@ Below are a few screenshots demonstrating the application in action:
 
 ## Design
 
-### 1. Class Diagram (Key Components)
+We employ a minimalistic **two-layer** design for simplicity and maintainability:
+
+   **Presentation Layer (Flask Application)**: Handles HTTP routes, file uploads, rendering templates, and basic request validations as well as security controls.
+
+   **Logic Layer (Scanner)**: Encapsulates all vulnerability checks and remediation recommendations. Processes uploaded JSON configurations and returns structured vulnerability data.  
+
+### Class Diagram (Key Components)
 
 ![alt text](assets/class_diagram.png)
 
-### 2. Cloud Run Deployment Diagram
+### Cloud Run Deployment Diagram
 
 ![alt text](assets/cloud_run_deployment_diagram.png)
-
-### 3. Use Case Diagram
-
-![assets/use_case_diagram.png](assets/use_case_diagram.png)
 
 ---
 
